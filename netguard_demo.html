@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NetGuard AI — Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0b0e13;--bg2:#111621;--bg3:#181e2b;--bg4:#1d2535;--border:#1f2a3d;--border2:#2a3a54;--text:#c9d4e8;--text2:#6b7fa0;--text3:#3d4f6b;--green:#00e5a0;--green2:#00b37d;--green-bg:#001f14;--red:#ff4d6a;--red2:#c73050;--red-bg:#1a0a0e;--amber:#ffb547;--amber-bg:#1a1200;--blue:#4d9fff;--blue-bg:#030e1f;--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.025) 3px,rgba(0,0,0,.025) 4px)}
+.shell{display:grid;grid-template-rows:56px 1fr;grid-template-columns:1fr 340px;min-height:100vh;max-width:1240px;margin:0 auto}
+.topbar{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:0 28px;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:15px;font-weight:600;color:var(--green);letter-spacing:.04em;text-decoration:none}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,229,160,.4)}50%{box-shadow:0 0 0 6px rgba(0,229,160,0)}}
+.slash{color:var(--text3);margin:0 2px}
+.badge{font-family:var(--mono);font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:3px;color:var(--text2);letter-spacing:.08em}
+.demo-chip{margin-left:auto;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:20px;background:rgba(255,181,71,.1);border:1px solid rgba(255,181,71,.3);color:var(--amber)}
+.demo-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:blink 1.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.main{padding:28px;border-right:1px solid var(--border);overflow-y:auto}
+.sidebar{padding:24px 20px;overflow-y:auto;background:var(--bg2)}
+.slabel{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.12em;color:var(--text3);text-transform:uppercase;margin-bottom:12px}
+.slabel span{color:var(--green);margin-right:6px}
+.upload-zone{border:1.5px dashed var(--border2);border-radius:8px;padding:36px 24px;text-align:center;background:var(--bg3);margin-bottom:14px;position:relative}
+.upload-icon{font-size:30px;color:var(--text3);margin-bottom:12px}
+.upload-title{font-size:14px;font-weight:500;color:var(--text);margin-bottom:5px}
+.upload-sub{font-size:12px;color:var(--text2);margin-bottom:14px}
+.formats{display:flex;gap:8px;justify-content:center}
+.fmt{font-family:var(--mono);font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:3px;color:var(--text2);background:var(--bg2)}
+.demo-files{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px}
+.demo-file{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);cursor:pointer;transition:all .2s;user-select:none}
+.demo-file:hover{border-color:var(--border2);background:var(--bg4)}
+.demo-file.selected{border-color:var(--green2);background:#0d1a14}
+.df-icon{font-size:16px}
+.df-name{font-family:var(--mono);font-size:11px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.df-badge{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:2px;flex-shrink:0}
+.df-badge.ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green2)}
+.df-badge.atk{background:var(--red-bg);color:var(--red);border:1px solid var(--red2)}
+.run-btn{width:100%;padding:13px;background:var(--green);color:#000;border:none;border-radius:6px;font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.08em;cursor:pointer;transition:all .15s;margin-bottom:24px}
+.run-btn:hover{background:var(--green2)}
+.run-btn:disabled{background:var(--border2);color:var(--text3);cursor:not-allowed}
+.stages{display:none;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.stages.show{display:flex}
+.sp{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;padding:5px 14px;border-radius:4px;border:1px solid var(--border);color:var(--text3);background:var(--bg3);transition:all .4s}
+.sp.active{border-color:var(--blue);color:var(--blue);background:var(--blue-bg)}
+.sp.done{border-color:var(--green2);color:var(--green);background:var(--green-bg)}
+.sp.danger{border-color:var(--red2);color:var(--red);background:var(--red-bg)}
+.sp-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.sp-dot.spin{background:none;border:1.5px solid currentColor;border-top-color:transparent;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.log-box{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 16px;margin-bottom:20px;font-family:var(--mono);font-size:11px;line-height:1.9;max-height:130px;overflow-y:auto;display:none}
+.log-box.show{display:block}
+.ll{color:var(--text2)}.ll.ok{color:var(--green)}.ll.warn{color:var(--amber)}.ll.info{color:var(--blue)}
+.result-area{display:none}
+.result-area.show{display:block;animation:fadeUp .4s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.rcard{border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:20px}
+.rcard.benign{border-color:var(--green2)}.rcard.attack{border-color:var(--red2)}
+.rcard-hdr{display:flex;align-items:center;gap:12px;padding:14px 20px}
+.rcard-hdr.benign{background:var(--green-bg)}.rcard-hdr.attack{background:var(--red-bg)}
+.verdict{font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:.05em}
+.verdict.benign{color:var(--green)}.verdict.attack{color:var(--red)}
+.conf-tag{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text2)}
+.rcard-body{padding:20px;background:var(--bg3)}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.stat-box{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px 14px}
+.stat-lbl{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.stat-val{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text)}
+.stat-val.red{color:var(--red)}.stat-val.green{color:var(--green)}.stat-val.amber{color:var(--amber)}
+.flow-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:7px}
+.flow-fill{height:100%;border-radius:2px;transition:width 1s ease}
+.flow-fill.red{background:var(--red2)}.flow-fill.green{background:var(--green2)}
+.summary-blk{border-left:2px solid var(--border2);padding-left:14px;margin-bottom:18px;font-size:13px;color:var(--text2);line-height:1.75}
+.summary-blk.attack{border-left-color:var(--red2)}.summary-blk.benign{border-left-color:var(--green2)}
+.shap-title{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.shap-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.shap-name{font-family:var(--mono);font-size:11px;color:var(--text2);width:210px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shap-bg{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.shap-bar{height:100%;border-radius:3px;transition:width 1.2s ease .2s}
+.shap-val{font-family:var(--mono);font-size:10px;color:var(--text2);min-width:38px;text-align:right}
+.sug-hd{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.sug-list{list-style:none}
+.sug-list li{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2);line-height:1.65}
+.sug-list li:last-child{border-bottom:none}
+.snum{font-family:var(--mono);font-size:11px;color:var(--green);min-width:22px;margin-top:1px;font-weight:600}
+.sb-head{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--green);letter-spacing:.06em;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.doc-step{display:flex;gap:12px;margin-bottom:20px}
+.doc-n{width:24px;height:24px;flex-shrink:0;border-radius:4px;background:#0d1520;border:1px solid var(--border2);font-family:var(--mono);font-size:11px;font-weight:600;color:var(--blue);display:flex;align-items:center;justify-content:center;margin-top:2px}
+.doc-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px}
+.doc-body{font-size:12px;color:var(--text2);line-height:1.75}
+.doc-tag{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:3px;margin-top:6px;background:#0d1520;border:1px solid var(--border2);color:var(--blue)}
+.sb-div{border:none;border-top:1px solid var(--border);margin:18px 0}
+.sb-mini{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+.algo-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.algo-name{font-family:var(--mono);font-size:11px;color:var(--text2);width:110px;flex-shrink:0}
+.algo-bg{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.algo-fill{height:100%;border-radius:2px;transition:width 1s ease}
+.algo-val{font-family:var(--mono);font-size:11px;font-weight:500;min-width:42px;text-align:right}
+.cat-grid{display:flex;flex-wrap:wrap;gap:6px}
+.cat{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:3px;border:1px solid var(--border2);color:var(--text2);background:var(--bg3)}
+.pipe-box{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:14px;margin-top:14px}
+.pipe-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);margin-bottom:7px}
+.pipe-row:last-child{margin-bottom:0}
+.pipe-row strong{color:var(--text);font-weight:500}
+.pipe-arr{color:var(--text3)}
+.ds-note{margin-top:16px;padding:12px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text2);line-height:1.7}
+.ds-note strong{color:var(--text);font-weight:500}
+@media(max-width:800px){.shell{grid-template-columns:1fr}.main{border-right:none}.stat-grid{grid-template-columns:1fr 1fr}.demo-files{grid-template-columns:1fr}.sidebar{border-top:1px solid var(--border)}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="topbar">
+  <div class="logo"><div class="pulse"></div>NETGUARD<span class="slash">/</span>AI</div>
+  <span class="badge">XGBoost</span>
+  <span class="badge">CICIDS2017</span>
+  <span class="badge">Two-Stage Pipeline</span>
+  <div class="demo-chip"><div class="demo-dot"></div>DEMO MODE</div>
+</header>
+
+<main class="main">
+  <div class="slabel"><span>//</span>Upload network traffic file</div>
+  <div class="upload-zone">
+    <div class="upload-icon">⬡</div>
+    <div class="upload-title">Drop your file here, or click to browse</div>
+    <div class="upload-sub">Feed it your network capture — we'll scan every flow for intrusions</div>
+    <div class="formats"><span class="fmt">.CSV</span><span class="fmt">.PCAP</span><span class="fmt">.PCAPNG</span></div>
+  </div>
+
+  <div class="slabel" style="margin-bottom:8px"><span>//</span>Choose a demo scenario</div>
+  <div class="demo-files" id="demoFiles">
+    <div class="demo-file selected" data-id="ddos" onclick="selectDemo(this,'ddos')">
+      <span class="df-icon">⚡</span><span class="df-name">network_capture_mon.csv</span><span class="df-badge atk">ATTACK</span>
+    </div>
+    <div class="demo-file" data-id="portscan" onclick="selectDemo(this,'portscan')">
+      <span class="df-icon">🔍</span><span class="df-name">traffic_tuesday.csv</span><span class="df-badge atk">ATTACK</span>
+    </div>
+    <div class="demo-file" data-id="benign" onclick="selectDemo(this,'benign')">
+      <span class="df-icon">📡</span><span class="df-name">office_traffic_wed.pcap</span><span class="df-badge ok">CLEAN</span>
+    </div>
+    <div class="demo-file" data-id="bruteforce" onclick="selectDemo(this,'bruteforce')">
+      <span class="df-icon">🔐</span><span class="df-name">ssh_session_logs.pcap</span><span class="df-badge atk">ATTACK</span>
+    </div>
+  </div>
+
+  <button class="run-btn" id="runBtn" onclick="runDemo()">⬡ RUN DETECTION</button>
+
+  <div class="stages" id="stages">
+    <div class="sp" id="sp1"><div class="sp-dot" id="sp1d"></div>STAGE 1 — BINARY CHECK</div>
+    <div class="sp" id="sp2"><div class="sp-dot" id="sp2d"></div>STAGE 2 — CLASSIFY TYPE</div>
+    <div class="sp" id="sp3"><div class="sp-dot" id="sp3d"></div>GENERATING REPORT</div>
+  </div>
+
+  <div class="log-box" id="logBox"></div>
+
+  <div class="result-area" id="resultArea">
+    <div class="slabel"><span>//</span>Detection report</div>
+    <div id="resultCard"></div>
+  </div>
+</main>
+
+<aside class="sidebar">
+  <div class="sb-head">▸ How it works</div>
+
+  <div class="doc-step">
+    <div class="doc-n">01</div>
+    <div>
+      <div class="doc-title">Upload your traffic file</div>
+      <div class="doc-body">Got a <strong style="color:var(--text)">CSV</strong> from CICFlowMeter? Perfect. Raw <strong style="color:var(--text)">PCAP</strong>? We extract CICIDS2017 flow features on the fly using scapy — no extra tools needed.</div>
+    </div>
+  </div>
+
+  <div class="doc-step">
+    <div class="doc-n">02</div>
+    <div>
+      <div class="doc-title">Stage 1 — Is it an attack?</div>
+      <div class="doc-body">First model does one job: <strong style="color:var(--text)">BENIGN or ATTACK</strong>. Checks every flow in your file. If all clear — you're done. Suspicious traffic gets flagged and passed straight to Stage 2. Trained with SMOTE balancing on 80% of CICIDS2017.</div>
+      <span class="doc-tag">⬡ XGBoost binary classifier</span>
+    </div>
+  </div>
+
+  <div class="doc-step">
+    <div class="doc-n">03</div>
+    <div>
+      <div class="doc-title">Stage 2 — What kind?</div>
+      <div class="doc-body">Only runs if Stage 1 finds something. Identifies the <strong style="color:var(--text)">exact attack category</strong> — trained only on attack-type records so it's laser-focused. Then gives you plain-English steps on what to do right now.</div>
+      <span class="doc-tag">⬡ XGBoost multi-class</span>
+    </div>
+  </div>
+
+  <div class="pipe-box">
+    <div class="pipe-row">📤 <span>Upload CSV / PCAP <span class="pipe-arr">→</span> <strong>Preprocess</strong></span></div>
+    <div class="pipe-row">🔵 <span><strong>Stage 1:</strong> Benign vs Attack</span></div>
+    <div class="pipe-row" style="padding-left:20px">↳ <span style="color:var(--green)">BENIGN → All clear ✓</span></div>
+    <div class="pipe-row" style="padding-left:20px">↳ <span style="color:var(--red)">ATTACK → Stage 2 ↓</span></div>
+    <div class="pipe-row">🔴 <span><strong>Stage 2:</strong> Category + Advice</span></div>
+  </div>
+
+  <hr class="sb-div"/>
+
+  <div class="sb-mini">Model comparison — weighted F1</div>
+  <div class="algo-row">
+    <span class="algo-name">XGBoost ★</span>
+    <div class="algo-bg"><div class="algo-fill" style="width:0%;background:var(--green)" data-w="97"></div></div>
+    <span class="algo-val" style="color:var(--green)">0.9989</span>
+  </div>
+  <div class="algo-row">
+    <span class="algo-name">Random Forest</span>
+    <div class="algo-bg"><div class="algo-fill" style="width:0%;background:var(--blue)" data-w="88"></div></div>
+    <span class="algo-val" style="color:var(--blue)">0.9980</span>
+  </div>
+  <div class="algo-row">
+    <span class="algo-name">Decision Tree</span>
+    <div class="algo-bg"><div class="algo-fill" style="width:0%;background:var(--text3)" data-w="74"></div></div>
+    <span class="algo-val" style="color:var(--text2)">0.9871</span>
+  </div>
+
+  <hr class="sb-div"/>
+
+  <div class="sb-mini">Stage 2 attack categories</div>
+  <div class="cat-grid">
+    <span class="cat">DoS / DDoS</span>
+    <span class="cat">PortScan</span>
+    <span class="cat">BruteForce</span>
+    <span class="cat">WebAttack</span>
+    <span class="cat">Botnet</span>
+    <span class="cat">Infiltration</span>
+  </div>
+
+  <div class="ds-note">
+    <strong>Training data:</strong> CICIDS2017 — ~2.8M flows, 8 capture days. Labels mapped into 6 attack categories using the CATEGORY_MAP from Sprint 1. MinMax scaled, SMOTE balanced, 80/20 stratified split (random_state=42).
+  </div>
+</aside>
+</div>
+
+<script>
+const SC = {
+  ddos:{file:'network_capture_mon.csv',total:1301,flagged:1284,isAtk:true,s1:0.973,s2:0.964,type:'DoS_DDoS',label:'DoS / DDoS Attack',threat:'CRITICAL',color:'attack',
+    summary:"Your network is being flooded with massive traffic from multiple sources simultaneously. The goal is to exhaust your bandwidth so real users can't get through — a classic volumetric DoS/DDoS pattern matching the CICIDS2017 DoS Hulk, DDoS, and Slowloris profiles.",
+    sugs:["Contact your ISP immediately and request upstream traffic filtering or null-routing of the top attacking source IPs.","Enable rate-limiting on your firewall — aggressively throttle UDP and ICMP traffic from outside your network.","If you're on cloud (AWS / Azure / GCP), activate the built-in DDoS Shield or WAF service right now.","Document the attack window, source IP patterns, and affected services — you'll need this for your incident report."],
+    shap:[{n:"Flow Bytes/s",v:0.341,c:"#ff4d6a"},{n:"Flow Packets/s",v:0.287,c:"#ff4d6a"},{n:"Fwd Packet Length Mean",v:0.198,c:"#ff4d6a"},{n:"Total Fwd Packets",v:0.176,c:"#ff8547"},{n:"Flow IAT Mean",v:0.143,c:"#ff8547"},{n:"Fwd IAT Total",v:0.121,c:"#ffb547"},{n:"Bwd Packet Length Mean",v:0.098,c:"#4d9fff"},{n:"Flow Duration",v:0.089,c:"#4d9fff"}],
+    logs:[{t:"info",m:"[00:00.000] Reading CSV: network_capture_mon.csv (177.2 KB)"},{t:"ok",m:"[00:00.043] Parsed 1,301 flows × 70 features"},{t:"info",m:"[00:00.044] Replacing Inf → NaN, filling NaN → 0 (MinMax pre-scaled)"},{t:"info",m:"[00:00.051] Stage 1 — XGBoost binary inference..."},{t:"ok",m:"[00:00.189] Stage 1 done — 1,284 / 1,301 flows flagged ATTACK"},{t:"warn",m:"[00:00.190] ⚠ Attack detected → proceeding to Stage 2"},{t:"info",m:"[00:00.191] Stage 2 — XGBoost multi-class on 1,284 flagged flows..."},{t:"ok",m:"[00:00.312] Stage 2 done — DoS_DDoS (96.4% confidence)"},{t:"ok",m:"[00:00.313] ✓ Report generated"}]},
+
+  portscan:{file:'traffic_tuesday.csv',total:632,flagged:598,isAtk:true,s1:0.981,s2:0.943,type:'PortScan',label:'Port Scan',threat:'HIGH',color:'attack',
+    summary:"Someone is systematically probing your network — sending connection requests across a wide range of ports to discover which services are open. This is reconnaissance: the attacker is mapping your attack surface before launching something deeper.",
+    sugs:["Identify the scanning source IPs from your firewall logs and block them at the perimeter immediately.","Audit all open ports on public-facing hosts — close or firewall anything that doesn't need to be exposed.","Enable SYN-flood / half-open connection detection rules on your IDS to catch future scans earlier.","Consider moving sensitive services (SSH, RDP, admin panels) behind a VPN so they're invisible to external scanners."],
+    shap:[{n:"Destination Port",v:0.412,c:"#ff4d6a"},{n:"SYN Flag Count",v:0.334,c:"#ff4d6a"},{n:"Flow Duration",v:0.271,c:"#ff4d6a"},{n:"Fwd Packets/s",v:0.198,c:"#ff8547"},{n:"FIN Flag Count",v:0.167,c:"#ff8547"},{n:"Total Fwd Packets",v:0.143,c:"#ffb547"},{n:"Flow IAT Min",v:0.112,c:"#4d9fff"},{n:"RST Flag Count",v:0.098,c:"#4d9fff"}],
+    logs:[{t:"info",m:"[00:00.000] Reading CSV: traffic_tuesday.csv (89.4 KB)"},{t:"ok",m:"[00:00.031] Parsed 632 flows × 70 features"},{t:"info",m:"[00:00.039] Stage 1 — XGBoost binary inference..."},{t:"ok",m:"[00:00.144] Stage 1 done — 598 / 632 flows flagged ATTACK"},{t:"warn",m:"[00:00.145] ⚠ Attack detected → proceeding to Stage 2"},{t:"info",m:"[00:00.146] Stage 2 — XGBoost multi-class on 598 flagged flows..."},{t:"ok",m:"[00:00.231] Stage 2 done — PortScan (94.3% confidence)"},{t:"ok",m:"[00:00.232] ✓ Report generated"}]},
+
+  benign:{file:'office_traffic_wed.pcap',total:4821,flagged:0,isAtk:false,s1:0.996,s2:null,type:null,label:'Normal Traffic',threat:'NONE',color:'benign',
+    summary:"All 4,821 flows in this capture look completely normal. No attack patterns detected. Stage 2 was not triggered — the traffic matches expected benign profiles from the CICIDS2017 dataset with high confidence.",
+    sugs:["Keep your firewall rules and IDS signature databases up to date — threats evolve quickly.","Schedule periodic network audits to catch anomalies before they become incidents.","Consider setting up continuous monitoring with automated alerting for ongoing peace of mind."],
+    shap:[{n:"Flow Bytes/s",v:0.021,c:"#00e5a0"},{n:"Fwd Packet Length Mean",v:0.018,c:"#00e5a0"},{n:"Flow IAT Mean",v:0.015,c:"#00b37d"},{n:"Total Fwd Packets",v:0.012,c:"#00b37d"},{n:"Packet Length Variance",v:0.009,c:"#4d9fff"},{n:"Flow Duration",v:0.008,c:"#4d9fff"}],
+    logs:[{t:"info",m:"[00:00.000] Reading PCAP: office_traffic_wed.pcap (2.1 MB)"},{t:"info",m:"[00:00.142] Extracting flow features with scapy..."},{t:"ok",m:"[00:00.891] Extracted 4,821 flows × 70 features"},{t:"info",m:"[00:01.001] Stage 1 — XGBoost binary inference..."},{t:"ok",m:"[00:01.234] Stage 1 done — 0 / 4,821 flows flagged"},{t:"ok",m:"[00:01.235] ✓ BENIGN — Stage 2 not triggered"},{t:"ok",m:"[00:01.236] ✓ Report generated"}]},
+
+  bruteforce:{file:'ssh_session_logs.pcap',total:287,flagged:271,isAtk:true,s1:0.988,s2:0.921,type:'BruteForce',label:'Brute Force (SSH)',threat:'HIGH',color:'attack',
+    summary:"An attacker is rapidly and repeatedly trying different passwords against your SSH service. High-volume short-duration connections with authentication bursts is a clear brute-force signature — matching both FTP-Patator and SSH-Patator patterns from the CICIDS2017 training data.",
+    sugs:["Block the attacking IP(s) at your firewall immediately and verify fail2ban is active on the SSH service.","Enforce an account lockout policy — disable accounts after 5–10 failed login attempts.","Enable multi-factor authentication (MFA) on SSH and any other exposed authentication services right now.","Audit recent SSH success logs — if the attacker guessed a valid password, check for new authorized_keys files or unusual session activity."],
+    shap:[{n:"Fwd Packets/s",v:0.389,c:"#ff4d6a"},{n:"Flow Duration",v:0.301,c:"#ff4d6a"},{n:"Destination Port",v:0.267,c:"#ff4d6a"},{n:"RST Flag Count",v:0.198,c:"#ff8547"},{n:"Total Fwd Packets",v:0.176,c:"#ff8547"},{n:"Bwd Packets/s",v:0.143,c:"#ffb547"},{n:"Flow IAT Std",v:0.112,c:"#4d9fff"},{n:"ACK Flag Count",v:0.089,c:"#4d9fff"}],
+    logs:[{t:"info",m:"[00:00.000] Reading PCAP: ssh_session_logs.pcap (44.8 KB)"},{t:"info",m:"[00:00.051] Extracting flow features with scapy..."},{t:"ok",m:"[00:00.198] Extracted 287 flows × 70 features"},{t:"info",m:"[00:00.201] Stage 1 — XGBoost binary inference..."},{t:"ok",m:"[00:00.289] Stage 1 done — 271 / 287 flows flagged ATTACK"},{t:"warn",m:"[00:00.290] ⚠ Attack detected → proceeding to Stage 2"},{t:"info",m:"[00:00.291] Stage 2 — XGBoost multi-class on 271 flagged flows..."},{t:"ok",m:"[00:00.341] Stage 2 done — BruteForce (92.1% confidence)"},{t:"ok",m:"[00:00.342] ✓ Report generated"}]}
+};
+
+let cur = 'ddos';
+
+function selectDemo(el, id) {
+  document.querySelectorAll('.demo-file').forEach(d => d.classList.remove('selected'));
+  el.classList.add('selected');
+  cur = id;
+  document.getElementById('resultArea').classList.remove('show');
+  document.getElementById('stages').classList.remove('show');
+  document.getElementById('logBox').classList.remove('show');
+  resetSP();
+}
+
+function resetSP() {
+  [1,2,3].forEach(n => {
+    document.getElementById('sp'+n).className = 'sp';
+    document.getElementById('sp'+n+'d').className = 'sp-dot';
+  });
+}
+
+function setSP(n, s) {
+  document.getElementById('sp'+n).className = 'sp ' + s;
+  document.getElementById('sp'+n+'d').className = 'sp-dot' + (s==='active' ? ' spin' : '');
+}
+
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+function addLog(l) {
+  const b = document.getElementById('logBox');
+  const d = document.createElement('div');
+  d.className = 'll ' + l.t;
+  d.textContent = l.m;
+  b.appendChild(d);
+  b.scrollTop = b.scrollHeight;
+}
+
+async function runDemo() {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.textContent = '⬡ SCANNING…';
+  const sc = SC[cur];
+  document.getElementById('resultArea').classList.remove('show');
+  const lb = document.getElementById('logBox');
+  lb.innerHTML = '';
+  lb.classList.add('show');
+  document.getElementById('stages').classList.add('show');
+  resetSP();
+
+  setSP(1,'active');
+  for (let i = 0; i < Math.min(4, sc.logs.length); i++) { await delay(200); addLog(sc.logs[i]); }
+
+  if (!sc.isAtk) {
+    setSP(1,'done'); setSP(2,'done');
+    for (let i = 4; i < sc.logs.length; i++) { await delay(160); addLog(sc.logs[i]); }
+  } else {
+    await delay(300); setSP(1,'danger');
+    addLog(sc.logs[4]); addLog(sc.logs[5]);
+    await delay(200); setSP(2,'active');
+    for (let i = 6; i < sc.logs.length - 1; i++) { await delay(240); addLog(sc.logs[i]); }
+    await delay(300); setSP(2,'danger');
+  }
+
+  setSP(3,'active');
+  await delay(350);
+  addLog(sc.logs[sc.logs.length - 1]);
+  setSP(3,'done');
+  await delay(300);
+  renderResult(sc);
+  btn.disabled = false;
+  btn.textContent = '⬡ RUN DETECTION';
+}
+
+function renderResult(sc) {
+  const pct  = sc.total > 0 ? Math.round(sc.flagged / sc.total * 100) : 0;
+  const s1p  = Math.round(sc.s1 * 100);
+  const s2p  = sc.s2 ? Math.round(sc.s2 * 100) : null;
+  const conf = s2p ? `S1: ${s1p}% · S2: ${s2p}%` : `Confidence: ${s1p}%`;
+  const vt   = sc.isAtk ? `⚠ ${sc.label.toUpperCase()} DETECTED` : '✓ NETWORK CLEAN';
+  const tc   = {CRITICAL:'red',HIGH:'amber',NONE:'green'}[sc.threat] || 'amber';
+  const fc   = sc.isAtk ? (pct > 80 ? 'red' : 'amber') : 'green';
+  const maxS = sc.shap[0].v;
+  const shapH = sc.shap.map(s=>`<div class="shap-row"><span class="shap-name">${s.n}</span><div class="shap-bg"><div class="shap-bar" style="width:0%;background:${s.c}" data-w="${Math.round(s.v/maxS*100)}"></div></div><span class="shap-val">${s.v.toFixed(3)}</span></div>`).join('');
+  const sugH  = sc.sugs.map((s,i)=>`<li><span class="snum">0${i+1}</span>${s}</li>`).join('');
+
+  document.getElementById('resultCard').innerHTML = `
+  <div class="rcard ${sc.color}">
+    <div class="rcard-hdr ${sc.color}">
+      <span class="verdict ${sc.color}">${vt}</span>
+      <span class="conf-tag">${conf}</span>
+    </div>
+    <div class="rcard-body">
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-lbl">Flagged flows</div>
+          <div class="stat-val ${fc}">${sc.flagged.toLocaleString()}</div>
+          <div class="flow-bar"><div class="flow-fill ${fc}" style="width:0%" data-w="${pct}"></div></div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Total flows</div>
+          <div class="stat-val">${sc.total.toLocaleString()}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Threat level</div>
+          <div class="stat-val ${tc}">${sc.threat}</div>
+        </div>
+      </div>
+      <div class="summary-blk ${sc.color}">${sc.summary}</div>
+      <div class="shap-title">// Top features — why the model flagged this</div>
+      <div style="margin-bottom:20px">${shapH}</div>
+      <div class="sug-hd">// Recommended actions</div>
+      <ul class="sug-list">${sugH}</ul>
+    </div>
+  </div>`;
+
+  document.getElementById('resultArea').classList.add('show');
+  requestAnimationFrame(() => setTimeout(() => {
+    document.querySelectorAll('.shap-bar[data-w]').forEach(b => b.style.width = b.dataset.w + '%');
+    document.querySelectorAll('.flow-fill[data-w]').forEach(b => b.style.width = b.dataset.w + '%');
+  }, 80));
+}
+
+window.addEventListener('load', () => {
+  setTimeout(() => document.querySelectorAll('.algo-fill[data-w]').forEach(b => b.style.width = b.dataset.w + '%'), 500);
+  setTimeout(runDemo, 900);
+});
+</script>
+</body>
+</html>

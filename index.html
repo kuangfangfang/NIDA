@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NetGuard AI — Network Intrusion Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #0b0e13;
+  --bg2:      #111621;
+  --bg3:      #181e2b;
+  --border:   #1f2a3d;
+  --border2:  #2a3a54;
+  --text:     #c9d4e8;
+  --text2:    #6b7fa0;
+  --text3:    #3d4f6b;
+  --green:    #00e5a0;
+  --green-bg: #001f14;
+  --green2:   #00b37d;
+  --red:      #ff4d6a;
+  --red-bg:   #1a0a0e;
+  --red2:     #c73050;
+  --amber:    #ffb547;
+  --amber-bg: #1a1200;
+  --blue:     #4d9fff;
+  --blue-bg:  #030e1f;
+  --mono:     'IBM Plex Mono', monospace;
+  --sans:     'IBM Plex Sans', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; }
+
+/* ── Scanline overlay ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 999;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+
+/* ── Layout ── */
+.shell {
+  display: grid;
+  grid-template-rows: 56px 1fr;
+  grid-template-columns: 1fr 340px;
+  min-height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--green);
+  letter-spacing: 0.04em;
+}
+.logo-pulse {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(0,229,160,0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(0,229,160,0); }
+}
+.logo-slash { color: var(--text3); margin: 0 2px; }
+.topbar-sub { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-left: auto; letter-spacing: 0.05em; }
+.topbar-badge {
+  font-family: var(--mono); font-size: 10px; padding: 3px 8px;
+  border: 1px solid var(--border2); border-radius: 3px;
+  color: var(--text2); letter-spacing: 0.08em;
+}
+
+/* ── Main panel ── */
+.main {
+  padding: 28px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.sidebar {
+  padding: 24px 20px;
+  overflow-y: auto;
+  background: var(--bg2);
+}
+
+/* ── Section label ── */
+.slabel {
+  font-family: var(--mono);
+  font-size: 10px; font-weight: 500; letter-spacing: 0.12em;
+  color: var(--text3); text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.slabel span { color: var(--green); margin-right: 6px; }
+
+/* ── Upload zone ── */
+.upload-zone {
+  border: 1px dashed var(--border2);
+  border-radius: 8px;
+  padding: 40px 24px;
+  text-align: center;
+  background: var(--bg3);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  margin-bottom: 24px;
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--green2);
+  background: #0d1a14;
+}
+.upload-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.upload-icon {
+  font-size: 32px; margin-bottom: 12px;
+  color: var(--text3);
+}
+.upload-title {
+  font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 6px;
+}
+.upload-sub {
+  font-size: 12px; color: var(--text2); margin-bottom: 16px;
+}
+.upload-formats {
+  display: flex; gap: 8px; justify-content: center;
+}
+.fmt-tag {
+  font-family: var(--mono); font-size: 11px; padding: 3px 10px;
+  border: 1px solid var(--border2); border-radius: 3px;
+  color: var(--text2); background: var(--bg2);
+}
+.file-selected {
+  display: none;
+  align-items: center; gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px;
+  margin-bottom: 16px;
+}
+.file-selected.visible { display: flex; }
+.file-icon { font-size: 18px; color: var(--green); }
+.file-name { font-family: var(--mono); font-size: 12px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-size { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+
+.run-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  margin-bottom: 28px;
+  display: none;
+}
+.run-btn.visible { display: block; }
+.run-btn:hover { background: var(--green2); }
+.run-btn:active { transform: scale(0.99); }
+.run-btn:disabled { background: var(--border2); color: var(--text3); cursor: not-allowed; transform: none; }
+
+/* ── Progress / stages ── */
+.stages {
+  display: none;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.stages.visible { display: flex; }
+.stage-pill {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11px;
+  padding: 5px 12px; border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text3); background: var(--bg3);
+  transition: all 0.3s;
+}
+.stage-pill.active  { border-color: var(--blue);  color: var(--blue);  background: var(--blue-bg); }
+.stage-pill.done    { border-color: var(--green2); color: var(--green); background: var(--green-bg); }
+.stage-pill.attack  { border-color: var(--red2);   color: var(--red);   background: var(--red-bg); }
+.stage-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.stage-dot.spin {
+  background: none;
+  border: 1.5px solid currentColor; border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Result card ── */
+.result-area { display: none; }
+.result-area.visible { display: block; }
+
+.result-card {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+  animation: fadeUp 0.4s ease;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.result-card.benign  { border-color: var(--green2); }
+.result-card.attack  { border-color: var(--red2); }
+.result-card.warning { border-color: #d4870f; }
+
+.rc-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px;
+}
+.rc-header.benign  { background: var(--green-bg); }
+.rc-header.attack  { background: var(--red-bg); }
+.rc-header.warning { background: var(--amber-bg); }
+
+.rc-verdict {
+  font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0.06em;
+}
+.rc-verdict.benign  { color: var(--green); }
+.rc-verdict.attack  { color: var(--red); }
+.rc-verdict.warning { color: var(--amber); }
+
+.rc-conf {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 11px; color: var(--text2);
+}
+.rc-body { padding: 18px; background: var(--bg3); }
+.rc-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 14px; margin-bottom: 16px;
+}
+.rc-stat { }
+.rc-stat-label {
+  font-family: var(--mono); font-size: 10px; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px;
+}
+.rc-stat-val {
+  font-family: var(--mono); font-size: 14px; font-weight: 500; color: var(--text);
+}
+.rc-stat-val.highlight { color: var(--red); }
+.rc-stat-val.ok { color: var(--green); }
+
+.rc-summary {
+  font-size: 13px; color: var(--text2); line-height: 1.7;
+  border-left: 2px solid var(--border2);
+  padding-left: 14px; margin-bottom: 18px;
+}
+.rc-summary.attack { border-left-color: var(--red2); }
+.rc-summary.benign { border-left-color: var(--green2); }
+
+/* ── Suggestions ── */
+.suggest-title {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  color: var(--text3); text-transform: uppercase; letter-spacing: 0.12em;
+  margin-bottom: 10px;
+}
+.suggest-list { list-style: none; }
+.suggest-list li {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text2); line-height: 1.6;
+}
+.suggest-list li:last-child { border-bottom: none; }
+.suggest-num {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--green); min-width: 20px; margin-top: 1px; font-weight: 600;
+}
+
+/* ── Demo notice ── */
+.demo-notice {
+  display: none;
+  align-items: center; gap: 8px;
+  padding: 10px 14px; margin-bottom: 16px;
+  background: var(--amber-bg); border: 1px solid #3a2a00; border-radius: 6px;
+  font-family: var(--mono); font-size: 11px; color: var(--amber);
+}
+.demo-notice.visible { display: flex; }
+
+/* ── Error box ── */
+.error-box {
+  display: none;
+  padding: 12px 16px; margin-bottom: 16px;
+  background: var(--red-bg); border: 1px solid var(--red2); border-radius: 6px;
+  font-family: var(--mono); font-size: 12px; color: var(--red);
+}
+.error-box.visible { display: block; }
+
+/* ── Sidebar ── */
+.sidebar-head {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  color: var(--green); letter-spacing: 0.06em;
+  margin-bottom: 20px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.doc-step {
+  display: flex; gap: 12px; margin-bottom: 20px;
+}
+.doc-num {
+  width: 24px; height: 24px; flex-shrink: 0;
+  border-radius: 4px; background: #0d1520; border: 1px solid var(--border2);
+  font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--blue);
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+.doc-title {
+  font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px;
+}
+.doc-desc {
+  font-size: 12px; color: var(--text2); line-height: 1.7;
+}
+.doc-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 10px;
+  padding: 2px 8px; border-radius: 3px; margin-top: 6px;
+  background: #0d1520; border: 1px solid var(--border2); color: var(--blue);
+}
+
+.sidebar-divider {
+  border: none; border-top: 1px solid var(--border);
+  margin: 18px 0;
+}
+
+.algo-section-title {
+  font-family: var(--mono); font-size: 10px; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px;
+}
+
+.algo-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.algo-name {
+  font-family: var(--mono); font-size: 11px; color: var(--text2);
+  width: 105px; flex-shrink: 0;
+}
+.algo-bar-bg {
+  flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;
+}
+.algo-bar { height: 100%; border-radius: 2px; transition: width 1s ease; }
+.algo-val {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  min-width: 36px; text-align: right;
+}
+
+.attack-types-title {
+  font-family: var(--mono); font-size: 10px; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px;
+}
+.attack-tag-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.attack-tag {
+  font-family: var(--mono); font-size: 10px;
+  padding: 3px 8px; border-radius: 3px;
+  border: 1px solid var(--border2); color: var(--text2);
+  background: var(--bg3);
+}
+
+.dataset-note {
+  margin-top: 18px;
+  padding: 12px 14px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px; color: var(--text2); line-height: 1.7;
+}
+.dataset-note strong { color: var(--text); font-weight: 500; }
+
+/* ── Responsive ── */
+@media (max-width: 800px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { border-top: 1px solid var(--border); }
+  .main { border-right: none; }
+  .topbar { padding: 0 16px; }
+  .main { padding: 20px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-pulse"></div>
+      NETGUARD<span class="logo-slash">/</span>AI
+    </div>
+    <span class="topbar-badge">XGBoost</span>
+    <span class="topbar-badge">CICIDS2017</span>
+    <span class="topbar-sub">Two-Stage Intrusion Detection</span>
+  </header>
+
+  <!-- Main panel -->
+  <main class="main">
+
+    <div class="slabel"><span>//</span> Upload network traffic file</div>
+
+    <!-- Upload zone -->
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept=".csv,.pcap,.pcapng"/>
+      <div class="upload-icon">⬡</div>
+      <div class="upload-title">Drop your file here, or click to browse</div>
+      <div class="upload-sub">Feed it your network capture and we'll scan it for intrusions</div>
+      <div class="upload-formats">
+        <span class="fmt-tag">.CSV</span>
+        <span class="fmt-tag">.PCAP</span>
+        <span class="fmt-tag">.PCAPNG</span>
+      </div>
+    </div>
+
+    <!-- File selected row -->
+    <div class="file-selected" id="fileSelected">
+      <span class="file-icon">◈</span>
+      <span class="file-name" id="fileName">—</span>
+      <span class="file-size" id="fileSize">—</span>
+    </div>
+
+    <!-- Demo notice -->
+    <div class="demo-notice" id="demoNotice">
+      ⚠ &nbsp;Running in demo mode — no model .pkl found. Place binary_model.pkl and multiclass_model.pkl in /models/ to use real predictions.
+    </div>
+
+    <!-- Error -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- Run button -->
+    <button class="run-btn" id="runBtn" onclick="runDetection()">⬡ RUN DETECTION</button>
+
+    <!-- Stage indicators -->
+    <div class="stages" id="stages">
+      <div class="stage-pill" id="s1">
+        <div class="stage-dot" id="s1dot"></div>
+        STAGE 1: BINARY
+      </div>
+      <div class="stage-pill" id="s2">
+        <div class="stage-dot" id="s2dot"></div>
+        STAGE 2: CLASSIFY
+      </div>
+    </div>
+
+    <!-- Result area -->
+    <div class="result-area" id="resultArea">
+      <div class="slabel"><span>//</span> Detection report</div>
+      <div id="resultCard"></div>
+    </div>
+
+  </main>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <div class="sidebar-head">
+      ▸ How it works
+    </div>
+
+    <div class="doc-step">
+      <div class="doc-num">01</div>
+      <div>
+        <div class="doc-title">You upload your traffic file</div>
+        <div class="doc-desc">
+          Got a <strong style="color:var(--text)">CSV</strong> from CICFlowMeter? Perfect — we read it directly.
+          Got a raw <strong style="color:var(--text)">PCAP</strong>? No problem — we extract the flow features
+          on the fly using scapy, no extra tools needed.
+        </div>
+      </div>
+    </div>
+
+    <div class="doc-step">
+      <div class="doc-num">02</div>
+      <div>
+        <div class="doc-title">Stage 1 — Is this an attack?</div>
+        <div class="doc-desc">
+          The first model does one simple job: <strong style="color:var(--text)">yes or no</strong>.
+          It checks every network flow in your file.
+          If everything looks clean — you're all good, we stop here.
+          If something looks suspicious, we flag it and move on.
+        </div>
+        <div class="doc-tag">⬡ XGBoost binary classifier</div>
+      </div>
+    </div>
+
+    <div class="doc-step">
+      <div class="doc-num">03</div>
+      <div>
+        <div class="doc-title">Stage 2 — What kind of attack?</div>
+        <div class="doc-desc">
+          Only runs if Stage 1 found something. Takes the suspicious flows and
+          figures out <strong style="color:var(--text)">exactly what type of attack</strong> it is —
+          then gives you plain-English advice on what to do right now.
+        </div>
+        <div class="doc-tag">⬡ XGBoost multi-class</div>
+      </div>
+    </div>
+
+    <hr class="sidebar-divider"/>
+
+    <div class="algo-section-title">Model comparison — F1 score</div>
+
+    <div class="algo-row">
+      <span class="algo-name">XGBoost ★</span>
+      <div class="algo-bar-bg"><div class="algo-bar" style="width:0%;background:var(--green)" data-w="97"></div></div>
+      <span class="algo-val" style="color:var(--green)">98.7%</span>
+    </div>
+    <div class="algo-row">
+      <span class="algo-name">Random Forest</span>
+      <div class="algo-bar-bg"><div class="algo-bar" style="width:0%;background:var(--blue)" data-w="88"></div></div>
+      <span class="algo-val" style="color:var(--blue)">95.1%</span>
+    </div>
+    <div class="algo-row">
+      <span class="algo-name">Decision Tree</span>
+      <div class="algo-bar-bg"><div class="algo-bar" style="width:0%;background:var(--text3)" data-w="76"></div></div>
+      <span class="algo-val" style="color:var(--text2)">91.4%</span>
+    </div>
+
+    <hr class="sidebar-divider"/>
+
+    <div class="attack-types-title">Detectable attack types</div>
+    <div class="attack-tag-grid">
+      <span class="attack-tag">DDoS</span>
+      <span class="attack-tag">Port Scan</span>
+      <span class="attack-tag">Brute Force</span>
+      <span class="attack-tag">Bot / Botnet</span>
+      <span class="attack-tag">Infiltration</span>
+      <span class="attack-tag">Web Attack</span>
+      <span class="attack-tag">Heartbleed</span>
+    </div>
+
+    <div class="dataset-note">
+      <strong>Training data:</strong> CICIDS2017 — a widely-used benchmark dataset built
+      by the Canadian Institute for Cybersecurity. It contains real benign traffic mixed
+      with labeled attacks captured in a controlled environment,
+      covering Monday–Friday of simulated network activity.
+    </div>
+
+  </aside>
+
+</div>
+
+<script>
+const API = 'http://localhost:5000';
+let selectedFile = null;
+
+// ── File handling ──────────────────────────────────────────────────────────────
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) selectFile(e.target.files[0]);
+});
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) {
+    selectFile(e.dataTransfer.files[0]);
+    // Sync the input for form purposes
+    const dt = new DataTransfer();
+    dt.items.add(e.dataTransfer.files[0]);
+    fileInput.files = dt.files;
+  }
+});
+
+function selectFile(file) {
+  selectedFile = file;
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSize').textContent = formatBytes(file.size);
+  document.getElementById('fileSelected').classList.add('visible');
+  document.getElementById('runBtn').classList.add('visible');
+  document.getElementById('resultArea').classList.remove('visible');
+  document.getElementById('stages').classList.remove('visible');
+  document.getElementById('errorBox').classList.remove('visible');
+  document.getElementById('demoNotice').classList.remove('visible');
+}
+
+function formatBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(1) + ' MB';
+}
+
+// ── Stage UI helpers ───────────────────────────────────────────────────────────
+function setStage(n, state, verdict) {
+  const pill = document.getElementById('s' + n);
+  const dot  = document.getElementById('s' + n + 'dot');
+  pill.className = 'stage-pill ' + state;
+  dot.className  = 'stage-dot' + (state === 'active' ? ' spin' : '');
+}
+
+// ── Run detection ──────────────────────────────────────────────────────────────
+async function runDetection() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.textContent = '⬡ SCANNING…';
+  document.getElementById('errorBox').classList.remove('visible');
+  document.getElementById('resultArea').classList.remove('visible');
+  document.getElementById('demoNotice').classList.remove('visible');
+
+  const stages = document.getElementById('stages');
+  stages.classList.add('visible');
+  setStage(1, 'active'); setStage(2, 'idle');
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    // Small delay for stage 1 visual feedback
+    await delay(600);
+    const res = await fetch(API + '/detect', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || 'Unknown server error');
+
+    // Update stages
+    if (data.is_attack) {
+      setStage(1, 'attack');
+      await delay(500);
+      setStage(2, 'active');
+      await delay(700);
+      setStage(2, 'attack');
+    } else {
+      setStage(1, 'done');
+      setStage(2, 'done');
+    }
+
+    if (data.demo_mode) {
+      document.getElementById('demoNotice').classList.add('visible');
+    }
+
+    await delay(300);
+    renderResult(data);
+
+  } catch (err) {
+    setStage(1, 'idle'); setStage(2, 'idle');
+    const eb = document.getElementById('errorBox');
+    eb.textContent = '⚠ ' + (err.message.includes('Failed to fetch')
+      ? 'Cannot reach backend at localhost:5000. Make sure the Flask server is running.'
+      : err.message);
+    eb.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬡ RUN DETECTION';
+  }
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Render result ──────────────────────────────────────────────────────────────
+function renderResult(data) {
+  const area = document.getElementById('resultArea');
+  const card = document.getElementById('resultCard');
+
+  const info = data.attack_info;
+  const colorClass = data.is_attack
+    ? (info.color === 'warning' ? 'warning' : 'attack')
+    : 'benign';
+
+  const s1pct = data.stage1_confidence ? Math.round(data.stage1_confidence * 100) : '—';
+  const s2pct = data.stage2_confidence ? Math.round(data.stage2_confidence * 100) : null;
+
+  const confLine = s2pct
+    ? `Stage 1: ${s1pct}% · Stage 2: ${s2pct}%`
+    : `Confidence: ${s1pct}%`;
+
+  const verdictText = data.is_attack ? `⚠ ${info.label.toUpperCase()} DETECTED` : '✓ NETWORK CLEAN';
+
+  const flowsLine = data.is_attack
+    ? `<span class="rc-stat-val highlight">${data.flagged_flows.toLocaleString()}</span>`
+    : `<span class="rc-stat-val ok">${data.total_flows.toLocaleString()}</span>`;
+
+  const suggestions = (info.suggestions || []).map((s, i) =>
+    `<li><span class="suggest-num">0${i+1}</span>${s}</li>`
+  ).join('');
+
+  card.innerHTML = `
+    <div class="result-card ${colorClass}">
+      <div class="rc-header ${colorClass}">
+        <span class="rc-verdict ${colorClass}">${verdictText}</span>
+        <span class="rc-conf">${confLine}</span>
+      </div>
+      <div class="rc-body">
+        <div class="rc-grid">
+          <div class="rc-stat">
+            <div class="rc-stat-label">Flagged flows</div>
+            ${flowsLine}
+          </div>
+          <div class="rc-stat">
+            <div class="rc-stat-label">Total flows</div>
+            <span class="rc-stat-val">${data.total_flows.toLocaleString()}</span>
+          </div>
+          ${data.attack_type ? `
+          <div class="rc-stat">
+            <div class="rc-stat-label">Attack type</div>
+            <span class="rc-stat-val highlight">${data.attack_type}</span>
+          </div>
+          <div class="rc-stat">
+            <div class="rc-stat-label">Threat level</div>
+            <span class="rc-stat-val ${info.color === 'danger' ? 'highlight' : ''}">${info.color === 'danger' ? 'HIGH' : 'MEDIUM'}</span>
+          </div>` : ''}
+        </div>
+
+        <div class="rc-summary ${colorClass}">
+          ${info.summary}
+        </div>
+
+        <div class="suggest-title">// Recommended actions</div>
+        <ul class="suggest-list">${suggestions}</ul>
+      </div>
+    </div>`;
+
+  area.classList.add('visible');
+}
+
+// ── Animate bars on load ───────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.querySelectorAll('.algo-bar[data-w]').forEach(bar => {
+      bar.style.width = bar.dataset.w + '%';
+    });
+  }, 400);
+});
+</script>
+</body>
+</html>

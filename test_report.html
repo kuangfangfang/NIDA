@@ -1,0 +1,131 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>NetGuard AI — Test Report</title>
+<style>
+  body{background:#0a0a0a;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:32px}
+  h1{font-size:24px;margin-bottom:4px} .sub{color:#888;font-size:13px;margin-bottom:24px}
+  .cards{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+  .card{background:#161616;border:1px solid #222;border-radius:8px;padding:16px 24px;min-width:120px}
+  .card .num{font-size:28px;font-weight:700} .card .lbl{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.1em}
+  table{width:100%;border-collapse:collapse;background:#111;border-radius:8px;overflow:hidden}
+  th{text-align:left;padding:10px 12px;background:#1a1a1a;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#888}
+  .bar-bg{background:#222;border-radius:4px;height:8px;width:200px;margin-top:8px}
+  .bar-fg{height:8px;border-radius:4px}
+</style></head><body>
+<h1>🛡️ NetGuard AI — Test Report</h1>
+<div class="sub">2026-05-19 20:34:22 &nbsp;|&nbsp; Mode: Real Models &nbsp;|&nbsp; Total time: 0.24s</div>
+<div class="cards">
+  <div class="card"><div class="num" style="color:#22c55e">20</div><div class="lbl">Passed</div></div>
+  <div class="card"><div class="num" style="color:#ef4444">0</div><div class="lbl">Failed</div></div>
+  <div class="card"><div class="num" style="color:#f97316">0</div><div class="lbl">Errors</div></div>
+  <div class="card"><div class="num" style="color:#a1a1aa">5</div><div class="lbl">Skipped</div></div>
+  <div class="card"><div class="num">25</div><div class="lbl">Total</div></div>
+</div>
+<div style="margin-bottom:24px">
+  <span style="font-size:13px;color:#888">Pass Rate: 80.0%</span>
+  <div class="bar-bg"><div class="bar-fg" style="width:80%;background:#22c55e"></div></div>
+</div>
+<table><tr><th>Status</th><th>Test</th><th style="text-align:right">Time</th></tr>
+<tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_constant_csv_raises (__main__.TestPreprocessCSV.test_constant_csv_raises)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.011s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_empty_csv_raises (__main__.TestPreprocessCSV.test_empty_csv_raises)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.006s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_label_column_dropped (__main__.TestPreprocessCSV.test_label_column_dropped)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.013s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_partial_csv_pads_missing_columns (__main__.TestPreprocessCSV.test_partial_csv_pads_missing_columns)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.018s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_unrelated_csv_raises (__main__.TestPreprocessCSV.test_unrelated_csv_raises)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.001s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_valid_csv_returns_correct_columns (__main__.TestPreprocessCSV.test_valid_csv_returns_correct_columns)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.005s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_attack_info_structure (__main__.TestRunDetection.test_attack_info_structure)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.007s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#a1a1aa;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">SKIP</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_demo_mode_flag (__main__.TestRunDetection.test_demo_mode_flag)<pre style="margin:4px 0 0;font-size:11px;color:#888;white-space:pre-wrap">Models are loaded; demo_mode test N/A</pre></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.000s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_returns_required_fields (__main__.TestRunDetection.test_returns_required_fields)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.012s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_ddos_csv_detected (__main__.TestDetectEndpoint.test_ddos_csv_detected)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.044s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_health (__main__.TestDetectEndpoint.test_health)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.000s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_no_file_returns_400 (__main__.TestDetectEndpoint.test_no_file_returns_400)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.003s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_unrelated_csv_returns_400 (__main__.TestDetectEndpoint.test_unrelated_csv_returns_400)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.002s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_unsupported_filetype_returns_400 (__main__.TestDetectEndpoint.test_unsupported_filetype_returns_400)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.000s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_upload_valid_csv (__main__.TestDetectEndpoint.test_upload_valid_csv)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.012s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_constant_csv_rejected (__main__.TestInputValidation.test_constant_csv_rejected)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.009s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_empty_file (__main__.TestInputValidation.test_empty_file)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.001s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_few_columns_csv_rejected (__main__.TestInputValidation.test_few_columns_csv_rejected)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.003s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_negative_flow_duration (__main__.TestInputValidation.test_negative_flow_duration)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.006s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_port_out_of_range (__main__.TestInputValidation.test_port_out_of_range)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.004s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#22c55e;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">PASS</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_zero_flow_bytes_rejected (__main__.TestInputValidation.test_zero_flow_bytes_rejected)</td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.008s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#a1a1aa;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">SKIP</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_binary_accuracy (__main__.TestModelPerformance.test_binary_accuracy)<pre style="margin:4px 0 0;font-size:11px;color:#888;white-space:pre-wrap">Labelled test file not found: D:\ACU\Units\2026 S1\ITEC 631 software engineering\project\claude\test_data_labelled.csv</pre></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.000s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#a1a1aa;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">SKIP</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_multiclass_report (__main__.TestModelPerformance.test_multiclass_report)<pre style="margin:4px 0 0;font-size:11px;color:#888;white-space:pre-wrap">Labelled test file not found: D:\ACU\Units\2026 S1\ITEC 631 software engineering\project\claude\test_data_labelled.csv</pre></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.000s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#a1a1aa;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">SKIP</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_dashboard_loads (__main__.TestFrontendSmoke.test_dashboard_loads)<pre style="margin:4px 0 0;font-size:11px;color:#888;white-space:pre-wrap">Selenium / ChromeDriver not available</pre></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.000s</td>
+</tr><tr>
+  <td style="padding:8px 12px;border-bottom:1px solid #222"><span style="background:#a1a1aa;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">SKIP</span></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;font-family:monospace;font-size:13px">test_theme_toggle (__main__.TestFrontendSmoke.test_theme_toggle)<pre style="margin:4px 0 0;font-size:11px;color:#888;white-space:pre-wrap">Selenium / ChromeDriver not available</pre></td>
+  <td style="padding:8px 12px;border-bottom:1px solid #222;text-align:right;font-family:monospace;font-size:12px;color:#888">0.000s</td>
+</tr>
+</table>
+<div style="margin-top:24px;font-size:11px;color:#555">Generated by run_tests.py — NetGuard AI Test Suite</div>
+</body></html>

@@ -1,0 +1,2146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetGuard AI — Security Analytics Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      /* Day (Light) Mode - High Contrast and Clean */
+      --bg: #f1f5f9;
+      --bg2: #ffffff;
+      --bg3: #e2e8f0;
+      --card-bg: #ffffff;
+      --border: #cbd5e1;
+      --border2: #94a3b8;
+      --text: #0f172a;
+      --text2: #334155;
+      --text3: #64748b;
+      --green: #0f766e;
+      --green-bg: rgba(15, 118, 110, 0.08);
+      --green2: #0d9488;
+      --red: #be123c;
+      --red-bg: rgba(190, 18, 60, 0.08);
+      --red2: #e11d48;
+      --amber: #b45309;
+      --amber-bg: rgba(180, 83, 9, 0.08);
+      --blue: #0369a1;
+      --blue-bg: rgba(3, 105, 161, 0.08);
+      --purple: #6d28d9;
+      --btn-text: #ffffff;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
+      --chart-legend-color: #000000;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+
+    [data-theme="dark"] {
+      /* Night (Dark) Mode - Tech & Sleek */
+      --bg: #080b10;
+      --bg2: #0f131a;
+      --bg3: #151b26;
+      --card-bg: #111622;
+      --border: #1b2433;
+      --border2: #28354d;
+      --text: #d1dcef;
+      --text2: #7b8fae;
+      --text3: #4a5c78;
+      --green: #00f0a8;
+      --green-bg: rgba(0, 240, 168, 0.08);
+      --green2: #00b37d;
+      --red: #ff4d6a;
+      --red-bg: rgba(255, 77, 106, 0.08);
+      --red2: #d6304d;
+      --amber: #ffaa3b;
+      --amber-bg: rgba(255, 170, 59, 0.08);
+      --blue: #3fa0ff;
+      --blue-bg: rgba(63, 160, 255, 0.08);
+      --purple: #b076ff;
+      --btn-text: #000000;
+      --shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+      --chart-legend-color: #ffffff;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    /* Scanline overlay (Dark mode only) */
+    html[data-theme="dark"] body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.02) 2px, rgba(0, 0, 0, 0.02) 4px);
+    }
+
+    /* Top Banner Alerts */
+    .alert-banner {
+      position: fixed;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10000;
+      padding: 16px 32px;
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: var(--shadow);
+      transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid;
+      min-width: 320px;
+      justify-content: center;
+    }
+
+    .alert-banner.visible {
+      top: 24px;
+    }
+
+    .alert-banner.alert-danger {
+      background: var(--red-bg);
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    .alert-banner.alert-success {
+      background: var(--green-bg);
+      color: var(--green);
+      border-color: var(--green);
+    }
+
+    /* Shell Grid Layout */
+    .shell {
+      display: grid;
+      grid-template-rows: 64px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--green);
+      letter-spacing: 0.05em;
+    }
+
+    .logo-pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2.5s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.4);
+      }
+
+      50% {
+        box-shadow: 0 0 0 8px rgba(15, 118, 110, 0);
+      }
+    }
+
+    [data-theme="dark"] .logo-pulse {
+      animation: pulse-dark 2.5s infinite;
+    }
+
+    @keyframes pulse-dark {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(0, 240, 168, 0.4);
+      }
+
+      50% {
+        box-shadow: 0 0 0 8px rgba(0, 240, 168, 0);
+      }
+    }
+
+    .logo-slash {
+      color: var(--text3);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 16px;
+      margin-left: 28px;
+      margin-right: auto;
+    }
+
+    .nav-item {
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text2);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid transparent;
+    }
+
+    .nav-item:hover {
+      color: var(--text);
+      background: var(--bg3);
+    }
+
+    .nav-item.active {
+      color: var(--green);
+      background: var(--green-bg);
+      border-color: var(--green2);
+    }
+
+
+    .header-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 10px;
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      color: var(--text2);
+      background: var(--bg3);
+    }
+
+    .btn-help {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text2);
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-help:hover {
+      background: var(--bg3);
+      border-color: var(--border2);
+      color: var(--text);
+    }
+
+    /* Main Workspace Split layout for Large Screens */
+    .main-container {
+      display: grid;
+      grid-template-columns: 340px 1fr 360px;
+      grid-template-rows: auto auto;
+      gap: 24px;
+      padding: 24px;
+      overflow-y: auto;
+      height: calc(100vh - 64px);
+    }
+
+    .upload-col {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .report-col {
+      grid-column: 2;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      /* Center detection report horizontally */
+    }
+
+    .report-card-container {
+      width: 100%;
+      max-width: 580px;
+    }
+
+    .visual-col {
+      grid-column: 3;
+      grid-row: 1 / 3;
+      /* Spans down to the bottom */
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .history-col {
+      grid-column: 1 / 3;
+      /* Spans under upload and report */
+      grid-row: 2;
+    }
+
+    /* Responsive stacked layout for <= 1000px screen width */
+    @media (max-width: 1000px) {
+      .main-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        height: auto;
+        overflow-y: visible;
+        gap: 20px;
+      }
+
+      .upload-col {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .report-col {
+        grid-column: 1;
+        grid-row: 2;
+        align-items: stretch;
+      }
+
+      .report-card-container {
+        max-width: 100%;
+      }
+
+      .visual-col {
+        grid-column: 1;
+        grid-row: 3;
+      }
+
+      .history-col {
+        grid-column: 1;
+        grid-row: 4;
+      }
+    }
+
+    .section-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      color: var(--text3);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title span {
+      color: var(--green);
+    }
+
+    /* Upload Area */
+    .upload-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .upload-zone {
+      border: 2px dashed var(--border2);
+      border-radius: 6px;
+      padding: 32px 16px;
+      text-align: center;
+      background: var(--bg3);
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s ease-in-out;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.drag-over {
+      border-color: var(--green);
+      background: var(--bg);
+    }
+
+    .upload-zone input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .upload-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+      color: var(--text3);
+    }
+
+    .upload-text {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .upload-sub {
+      font-size: 11px;
+      color: var(--text2);
+      margin-bottom: 12px;
+    }
+
+    .file-tags {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border: 1px solid var(--border2);
+      border-radius: 3px;
+      color: var(--text2);
+    }
+
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: var(--btn-text);
+    }
+
+    .btn-primary:hover {
+      background: var(--green2);
+    }
+
+    .btn-primary:disabled {
+      background: var(--bg3);
+      color: var(--text3);
+      border-color: var(--border);
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border-color: var(--border2);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--text2);
+      background: var(--bg3);
+    }
+
+    /* Selected File Display */
+    .selected-file-row {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 5px;
+      margin-top: 12px;
+    }
+
+    .selected-file-row.visible {
+      display: flex;
+    }
+
+    .file-icon {
+      font-size: 18px;
+      color: var(--green);
+    }
+
+    .file-info-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-display-name {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-display-size {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text2);
+    }
+
+    /* Demo Notice / Errors */
+    .alert-box {
+      display: none;
+      padding: 12px 14px;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.5;
+      margin-top: 12px;
+      border: 1px solid;
+    }
+
+    .alert-box.visible {
+      display: block;
+    }
+
+    .alert-box.warning {
+      background: var(--amber-bg);
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    .alert-box.danger {
+      background: var(--red-bg);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    /* Stages animation */
+    .stages {
+      display: none;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .stages.visible {
+      display: flex;
+    }
+
+    .stage-pill {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--text3);
+      background: var(--bg2);
+      transition: all 0.3s;
+    }
+
+    .stage-pill.active {
+      border-color: var(--blue);
+      color: var(--blue);
+      background: var(--blue-bg);
+    }
+
+    .stage-pill.done {
+      border-color: var(--green2);
+      color: var(--green);
+      background: var(--green-bg);
+    }
+
+    .stage-pill.attack {
+      border-color: var(--red2);
+      color: var(--red);
+      background: var(--red-bg);
+    }
+
+    .stage-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .stage-dot.spin {
+      background: none;
+      border: 1.5px solid currentColor;
+      border-top-color: transparent;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Results layout */
+    .report-card {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .report-card.visible {
+      display: block;
+    }
+
+    .report-card.benign {
+      border-color: var(--green2);
+    }
+
+    .report-card.attack {
+      border-color: var(--red2);
+    }
+
+    .report-header {
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    .report-header.benign {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+
+    .report-header.attack {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    .report-body {
+      padding: 20px;
+    }
+
+    .report-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat-box {
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      padding: 12px;
+      border-radius: 5px;
+    }
+
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .stat-value.danger {
+      color: var(--red);
+    }
+
+    .stat-value.warning {
+      color: var(--amber);
+    }
+
+    .stat-value.success {
+      color: var(--green);
+    }
+
+    .summary-text {
+      background: var(--bg3);
+      border-left: 3px solid var(--border2);
+      padding: 12px;
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.6;
+      border-radius: 0 4px 4px 0;
+      margin-bottom: 18px;
+    }
+
+    .summary-text.benign {
+      border-left-color: var(--green2);
+    }
+
+    .summary-text.attack {
+      border-left-color: var(--red2);
+    }
+
+    .actions-list {
+      list-style: none;
+    }
+
+    .actions-list li {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 10px;
+      font-size: 12.5px;
+      color: var(--text2);
+      line-height: 1.5;
+    }
+
+    .actions-list li::before {
+      content: '⚡';
+      position: absolute;
+      left: 0;
+      color: var(--amber);
+      font-size: 11px;
+    }
+
+    /* Charts Block */
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      min-height: 350px;
+      box-shadow: var(--shadow);
+    }
+
+    .chart-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text2);
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .chart-scroll-container {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+      height: 280px;
+      /* Increased height to give plenty of space for legend */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chart-wrapper.scrollable-chart {
+      min-width: 260px;
+    }
+
+    .chart-placeholder {
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-align: center;
+      line-height: 1.5;
+      padding: 20px;
+    }
+
+    /* History Table */
+    .history-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .btn-clear {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--red);
+      background: transparent;
+      border: 1px solid var(--red);
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-clear:hover {
+      background: var(--red-bg);
+    }
+
+    .history-table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 12px;
+    }
+
+    th {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text3);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text2);
+    }
+
+    tr:hover td {
+      color: var(--text);
+      background: var(--bg3);
+    }
+
+    .verdict-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .verdict-tag.benign {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+
+    .verdict-tag.attack {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(6px);
+      z-index: 20000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-content {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      width: 90%;
+      max-width: 520px;
+      max-height: 85vh;
+      border-radius: 8px;
+      padding: 24px;
+      overflow-y: auto;
+      position: relative;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+      transform: translateY(-20px);
+      transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.visible .modal-content {
+      transform: translateY(0);
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      font-size: 22px;
+      color: var(--text3);
+      cursor: pointer;
+      background: none;
+      border: none;
+      transition: color 0.2s;
+      line-height: 1;
+    }
+
+    .modal-close:hover {
+      color: var(--text);
+    }
+
+    .modal-title {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--green);
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .doc-step {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .doc-num {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+      border-radius: 4px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+
+    .doc-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .doc-desc {
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+
+    .doc-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      margin-top: 6px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--blue);
+    }
+
+    .sidebar-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 16px 0;
+    }
+
+    .algo-section-title,
+    .attack-types-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+
+    .algo-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .algo-name {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text2);
+      width: 95px;
+      flex-shrink: 0;
+    }
+
+    .algo-bar-bg {
+      flex: 1;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .algo-bar {
+      height: 100%;
+      border-radius: 2px;
+      width: 0;
+      transition: width 1.2s cubic-bezier(0.1, 0.8, 0.2, 1);
+    }
+
+    .algo-val {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .attack-tag-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .attack-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      color: var(--text2);
+      background: var(--bg3);
+    }
+
+    .dataset-note {
+      margin-top: 16px;
+      padding: 12px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+
+    .dataset-note strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+  </style>
+  <!-- Non-flash theme execution block -->
+  <script>
+    (function () {
+      const savedTheme = localStorage.getItem('netguard_theme') || 'light';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      if (savedTheme === 'dark') {
+        document.documentElement.style.setProperty('--chart-legend-color', '#ffffff');
+      } else {
+        document.documentElement.style.setProperty('--chart-legend-color', '#000000');
+      }
+    })();
+  </script>
+</head>
+
+<body>
+
+  <!-- Top Alert Banner -->
+  <div id="alertBanner" class="alert-banner">
+    <span id="alertIcon">⚠️</span>
+    <span id="alertMessage">Intrusion Detected</span>
+  </div>
+
+  <!-- How It Works Modal overlay -->
+  <div id="howItWorksModal" class="modal-overlay" onclick="closeModalOnOuterClick(event)">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">×</button>
+      <div class="modal-title">▸ How it works</div>
+
+      <!-- Steps -->
+      <div class="doc-step">
+        <div class="doc-num">01</div>
+        <div>
+          <div class="doc-title">You upload your traffic file</div>
+          <div class="doc-desc">
+            Got a <strong style="color:var(--text)">CSV</strong> from CICFlowMeter? Perfect — we read it directly.
+            Got a raw <strong style="color:var(--text)">PCAP</strong>? No problem — we extract the flow features
+            on the fly using scapy, no extra tools needed.
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-step">
+        <div class="doc-num">02</div>
+        <div>
+          <div class="doc-title">Stage 1 — Is this an attack?</div>
+          <div class="doc-desc">
+            The first model does one simple job: <strong style="color:var(--text)">yes or no</strong>.
+            It checks every network flow in your file.
+            If everything looks clean — you're all good, we stop here.
+            If something looks suspicious, we flag it and move on.
+          </div>
+          <div class="doc-tag">⬡ XGBoost binary classifier</div>
+        </div>
+      </div>
+
+      <div class="doc-step">
+        <div class="doc-num">03</div>
+        <div>
+          <div class="doc-title">Stage 2 — What kind of attack?</div>
+          <div class="doc-desc">
+            Only runs if Stage 1 found something. Takes the suspicious flows and
+            figures out <strong style="color:var(--text)">exactly what type of attack</strong> it is —
+            then gives you plain-English advice on what to do right now.
+          </div>
+          <div class="doc-tag">⬡ XGBoost multi-class</div>
+        </div>
+      </div>
+
+      <hr class="sidebar-divider" />
+
+      <!-- F1 Score Bars -->
+      <div class="algo-section-title">Model comparison — F1 score</div>
+
+      <div class="algo-row">
+        <span class="algo-name">XGBoost ★</span>
+        <div class="algo-bar-bg">
+          <div class="algo-bar" style="background:var(--green)" data-w="97"></div>
+        </div>
+        <span class="algo-val" style="color:var(--green)">98.7%</span>
+      </div>
+
+      <div class="algo-row">
+        <span class="algo-name">Random Forest</span>
+        <div class="algo-bar-bg">
+          <div class="algo-bar" style="background:var(--blue)" data-w="88"></div>
+        </div>
+        <span class="algo-val" style="color:var(--blue)">95.1%</span>
+      </div>
+
+      <div class="algo-row">
+        <span class="algo-name">Decision Tree</span>
+        <div class="algo-bar-bg">
+          <div class="algo-bar" style="background:var(--text3)" data-w="76"></div>
+        </div>
+        <span class="algo-val" style="color:var(--text2)">91.4%</span>
+      </div>
+
+      <hr class="sidebar-divider" />
+
+      <!-- Detectable Types -->
+      <div class="attack-types-title">Detectable attack types</div>
+      <div class="attack-tag-grid">
+        <span class="attack-tag">DDoS</span>
+        <span class="attack-tag">Port Scan</span>
+        <span class="attack-tag">Brute Force</span>
+        <span class="attack-tag">Bot / Botnet</span>
+        <span class="attack-tag">Infiltration</span>
+        <span class="attack-tag">Web Attack</span>
+        <span class="attack-tag">Heartbleed</span>
+      </div>
+
+      <div class="dataset-note">
+        <strong>Training data:</strong> CICIDS2017 — a widely-used benchmark dataset built
+        by the Canadian Institute for Cybersecurity. It contains real benign traffic mixed
+        with labeled attacks captured in a controlled environment,
+        covering Monday–Friday of simulated network activity.
+      </div>
+    </div>
+  </div>
+
+  <div class="shell">
+
+    <!-- Topbar -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-pulse"></div>
+        NETGUARD<span class="logo-slash">/</span>ANALYTICS
+      </div>
+      <nav class="nav-links">
+        <a href="dashboard.html" class="nav-item active">Dashboard</a>
+        <a href="live_monitor.html" class="nav-item">Live Monitor</a>
+      </nav>
+      <div class="header-info">
+        <span class="badge">XGBoost ML</span>
+        <span class="badge">CICIDS2017 Model</span>
+        <span class="badge" style="color: var(--green); border-color: var(--green);">Realtime API Enabled</span>
+        <button id="themeToggleBtn" class="btn-help" onclick="toggleTheme()"></button>
+        <button class="btn-help" onclick="openModal()">
+          📘 How it works
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="main-container">
+
+      <!-- COLUMN 1: Upload -->
+      <div class="upload-col">
+        <div class="section-title"><span>//</span> Input Source</div>
+        <div class="upload-card">
+          <div class="upload-zone" id="uploadZone">
+            <input type="file" id="fileInput" accept=".csv,.pcap,.pcapng" />
+            <div class="upload-icon">⬢</div>
+            <div class="upload-text">Drag & drop traffic capture file</div>
+            <div class="upload-sub">Accepts packet dumps and formatted flows</div>
+            <div class="file-tags">
+              <span class="tag">.PCAP</span>
+              <span class="tag">.PCAPNG</span>
+              <span class="tag">.CSV</span>
+            </div>
+          </div>
+
+          <!-- Selected File info -->
+          <div id="selectedFileRow" class="selected-file-row">
+            <span class="file-icon">◆</span>
+            <div class="file-info-text">
+              <div id="fileDisplayName" class="file-display-name">temp_capture.pcap</div>
+              <div id="fileDisplaySize" class="file-display-size">0.0 KB</div>
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="btn-group">
+            <button id="downloadSampleBtn" class="btn btn-secondary" onclick="downloadSampleCSV()">
+              ⬇ Download Sample CSV
+            </button>
+            <button id="scanBtn" class="btn btn-primary" onclick="runScan()" disabled>
+              ⚡ Run Analytics
+            </button>
+          </div>
+        </div>
+
+        <!-- Inline Errors & Notices -->
+        <div id="inlineError" class="alert-box danger"></div>
+        <div id="demoNotice" class="alert-box warning">
+          ⚠️ <strong>Demo Mode active:</strong> Backend is running without models loaded. Showing simulated ML
+          responses.
+        </div>
+
+        <!-- Stage progression indicators -->
+        <div class="stages" id="stages">
+          <div class="stage-pill" id="stage1">
+            <div class="stage-dot" id="stage1dot"></div>
+            STAGE 1: BINARY
+          </div>
+          <div class="stage-pill" id="stage2">
+            <div class="stage-dot" id="stage2dot"></div>
+            STAGE 2: CLASSIFY
+          </div>
+        </div>
+      </div>
+
+      <!-- COLUMN 2: Center Detection Report -->
+      <div class="report-col">
+        <div class="report-card-container">
+          <div class="section-title"><span>//</span> Intrusive Scan Report</div>
+          <div id="reportCard" class="report-card">
+            <div id="reportHeader" class="report-header">
+              <span id="reportVerdict">Verdict</span>
+              <span id="reportConf" style="font-size: 11px; opacity: 0.8;">Confidence</span>
+            </div>
+
+            <div class="report-body">
+              <div class="report-grid">
+                <div class="stat-box" id="statThreatContainer">
+                  <div class="stat-label">Threat Level</div>
+                  <div id="statThreatLevel" class="stat-value">—</div>
+                </div>
+                <div class="stat-box" id="statAttackContainer">
+                  <div class="stat-label">Attack Type</div>
+                  <div id="statAttackType" class="stat-value">—</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-label">Anomaly Flows</div>
+                  <div id="statFlaggedFlows" class="stat-value">—</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-label">Total Flows</div>
+                  <div id="statTotalFlows" class="stat-value">—</div>
+                </div>
+              </div>
+
+              <div id="reportSummary" class="summary-text">
+                Summary details...
+              </div>
+
+              <div id="actionPlanTitle" class="section-title" style="margin-bottom: 8px; color: var(--text2)">
+                <span>▸</span> Action Plan</div>
+              <ul id="reportActions" class="actions-list">
+                <!-- Recommendations will be populated here -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- Placeholder when no scan has been executed -->
+          <div id="reportPlaceholder" class="chart-placeholder"
+            style="border: 1px dashed var(--border); border-radius: 8px; background: var(--card-bg);">
+            No scans performed. Select a capture file and click "Run Analytics" to compile reports.
+          </div>
+        </div>
+      </div>
+
+      <!-- COLUMN 3: Visualizations -->
+      <div class="visual-col">
+        <div>
+          <div class="section-title"><span>//</span> Threat Breakdown (Current Scan)</div>
+          <div class="chart-card">
+            <div class="chart-wrapper">
+              <canvas id="ratioChart" style="display: none;"></canvas>
+              <div id="ratioPlaceholder" class="chart-placeholder">No threat records detected in current scan</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title"><span>//</span> Attack Class Distribution (History)</div>
+          <div class="chart-card">
+            <div class="chart-scroll-container">
+              <div class="chart-wrapper scrollable-chart">
+                <canvas id="classChart" style="display: none;"></canvas>
+                <div id="classPlaceholder" class="chart-placeholder">No historical attack data logged yet</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 2 / COLUMN 1-2: History Table -->
+      <div class="history-col">
+        <div class="section-title" style="margin-bottom: 8px;">
+          <span>//</span> Threat Log History
+        </div>
+        <div class="history-card">
+          <div class="history-header">
+            <div style="font-size: 12px; color: var(--text2)">Displaying up to 10 recent analytical scans</div>
+            <button class="btn-clear" onclick="clearHistory()">Clear History</button>
+          </div>
+
+          <div class="history-table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Source File</th>
+                  <th>Result / Class</th>
+                  <th>Anomaly Ratio</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="historyTableBody">
+                <tr>
+                  <td colspan="5" style="text-align: center; color: var(--text3); padding: 24px;">
+                    No analysis logs stored locally
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:5000';
+    let selectedFile = null;
+
+    // Charts references
+    let ratioChart = null;
+    let classChart = null;
+    let lastScanData = null;
+
+    // LocalStorage key
+    const STORAGE_KEY = 'netguard_scan_history';
+
+    // CICIDS2017 column names
+    const FEATURE_COLUMNS = [
+      "Destination Port", "Flow Duration", "Total Fwd Packets", "Total Backward Packets",
+      "Total Length of Fwd Packets", "Total Length of Bwd Packets", "Fwd Packet Length Max",
+      "Fwd Packet Length Min", "Fwd Packet Length Mean", "Fwd Packet Length Std",
+      "Bwd Packet Length Max", "Bwd Packet Length Min", "Bwd Packet Length Mean",
+      "Bwd Packet Length Std", "Flow Bytes/s", "Flow Packets/s", "Flow IAT Mean",
+      "Flow IAT Std", "Flow IAT Max", "Flow IAT Min", "Fwd IAT Total", "Fwd IAT Mean",
+      "Fwd IAT Std", "Fwd IAT Max", "Fwd IAT Min", "Bwd IAT Total", "Bwd IAT Mean",
+      "Bwd IAT Std", "Bwd IAT Max", "Bwd IAT Min", "Fwd PSH Flags", "Bwd PSH Flags",
+      "Fwd URG Flags", "Bwd URG Flags", "Fwd Header Length", "Bwd Header Length",
+      "Fwd Packets/s", "Bwd Packets/s", "Min Packet Length", "Max Packet Length",
+      "Packet Length Mean", "Packet Length Std", "Packet Length Variance", "FIN Flag Count",
+      "SYN Flag Count", "RST Flag Count", "PSH Flag Count", "ACK Flag Count", "URG Flag Count",
+      "CWE Flag Count", "ECE Flag Count", "Down/Up Ratio", "Average Packet Size",
+      "Avg Fwd Segment Size", "Avg Bwd Segment Size", "Fwd Header Length.1",
+      "Fwd Avg Bytes/Bulk", "Fwd Avg Packets/Bulk", "Fwd Avg Bulk Rate",
+      "Bwd Avg Bytes/Bulk", "Bwd Avg Packets/Bulk", "Bwd Avg Bulk Rate", "Subflow Fwd Packets",
+      "Subflow Fwd Bytes", "Subflow Bwd Packets", "Subflow Bwd Bytes", "Init_Win_bytes_forward",
+      "Init_Win_bytes_backward", "act_data_pkt_fwd", "min_seg_size_forward", "Active Mean",
+      "Active Std", "Active Max", "Active Min", "Idle Mean", "Idle Std", "Idle Max", "Idle Min"
+    ];
+
+    // Helper to retrieve resolved CSS custom property colors programmatically
+    function getCSSVariable(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    // Chart colors according to user specification
+    function getChartTextColor() {
+      const theme = document.documentElement.getAttribute('data-theme') || 'light';
+      return theme === 'dark' ? '#ffffff' : '#000000';
+    }
+
+    function getChartGridColor() {
+      const theme = document.documentElement.getAttribute('data-theme') || 'light';
+      return theme === 'dark' ? '#28354d' : '#cbd5e1';
+    }
+
+    // Theme Management functions
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', newTheme);
+
+      // Dynamically set --chart-legend-color CSS variable on root
+      if (newTheme === 'dark') {
+        document.documentElement.style.setProperty('--chart-legend-color', '#ffffff');
+      } else {
+        document.documentElement.style.setProperty('--chart-legend-color', '#000000');
+      }
+
+      localStorage.setItem('netguard_theme', newTheme);
+      updateThemeButton(newTheme);
+      updateChartsTheme();
+    }
+
+    function updateThemeButton(theme) {
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) {
+        if (theme === 'dark') {
+          btn.innerHTML = '☀️ Light Mode';
+        } else {
+          btn.innerHTML = '🌙 Dark Mode';
+        }
+      }
+    }
+
+    function updateChartsTheme() {
+      const textColor = getChartTextColor();
+      const gridColor = getChartGridColor();
+
+      // Recreate the pie chart with new colors if we have active scan data
+      if (lastScanData) {
+        renderThreatBreakdownPieChart(lastScanData);
+      }
+
+      if (classChart) {
+        classChart.options.scales.x.ticks.color = textColor;
+        classChart.options.scales.y.ticks.color = textColor;
+        classChart.options.scales.y.grid.color = gridColor;
+
+        const themeRed = getCSSVariable('--red');
+        if (classChart.data.datasets && classChart.data.datasets[0]) {
+          classChart.data.datasets[0].backgroundColor = themeRed;
+          classChart.data.datasets[0].borderColor = themeRed;
+        }
+        classChart.update();
+      }
+    }
+
+    // Page initialization
+    document.addEventListener('DOMContentLoaded', () => {
+      const activeTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      updateThemeButton(activeTheme);
+      setupDragDrop();
+      updateChartsAndHistory();
+
+      // Monitor window resize to safely handle Chart.js adjustments
+      window.addEventListener('resize', () => {
+        if (ratioChart) ratioChart.resize();
+        if (classChart) classChart.resize();
+      });
+    });
+
+    // File Drag & Drop Logic
+    function setupDragDrop() {
+      const zone = document.getElementById('uploadZone');
+      const input = document.getElementById('fileInput');
+
+      input.addEventListener('change', e => {
+        if (e.target.files.length) handleSelectedFile(e.target.files[0]);
+      });
+
+      zone.addEventListener('dragover', e => {
+        e.preventDefault();
+        zone.classList.add('drag-over');
+      });
+
+      zone.addEventListener('dragleave', () => {
+        zone.classList.remove('drag-over');
+      });
+
+      zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) {
+          const file = e.dataTransfer.files[0];
+          handleSelectedFile(file);
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          input.files = dt.files;
+        }
+      });
+    }
+
+    function handleSelectedFile(file) {
+      selectedFile = file;
+      document.getElementById('fileDisplayName').textContent = file.name;
+      document.getElementById('fileDisplaySize').textContent = formatBytes(file.size);
+      document.getElementById('selectedFileRow').classList.add('visible');
+      document.getElementById('scanBtn').disabled = false;
+
+      // Reset reports and warning panels
+      document.getElementById('reportCard').classList.remove('visible');
+      document.getElementById('reportPlaceholder').style.display = 'block';
+      document.getElementById('stages').classList.remove('visible');
+      document.getElementById('inlineError').classList.remove('visible');
+      document.getElementById('demoNotice').classList.remove('visible');
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Sample CSV generator matching backend requirement
+    function downloadSampleCSV() {
+      const headerStr = FEATURE_COLUMNS.join(',') + '\n';
+      const dummyValues = Array(FEATURE_COLUMNS.length).fill(0);
+
+      dummyValues[0] = 80;    // Destination Port
+      dummyValues[1] = 10000; // Flow Duration
+      dummyValues[2] = 2;     // Total Fwd Packets
+      dummyValues[3] = 2;     // Total Backward Packets
+      dummyValues[4] = 120;   // Total Length of Fwd Packets
+      dummyValues[5] = 250;   // Total Length of Bwd Packets
+
+      const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headerStr + dummyValues.join(',') + '\n');
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", csvContent);
+      downloadAnchor.setAttribute("download", "netguard_sample_flows.csv");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+    }
+
+    // Header Sliding Alert Banner
+    function showBannerAlert(message, type) {
+      const banner = document.getElementById('alertBanner');
+      const icon = document.getElementById('alertIcon');
+      const msg = document.getElementById('alertMessage');
+
+      msg.textContent = message;
+      if (type === 'danger') {
+        banner.className = 'alert-banner alert-danger visible';
+        icon.textContent = '⚠️';
+      } else {
+        banner.className = 'alert-banner alert-success visible';
+        icon.textContent = '✅';
+      }
+
+      setTimeout(() => {
+        banner.classList.remove('visible');
+      }, 5000);
+    }
+
+    // Delay helper
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    function setStage(stageIndex, state) {
+      const pill = document.getElementById(`stage${stageIndex}`);
+      const dot = document.getElementById(`stage${stageIndex}dot`);
+      pill.className = `stage-pill ${state}`;
+      dot.className = `stage-dot${state === 'active' ? ' spin' : ''}`;
+    }
+
+    // Execution Analytics scan
+    async function runScan() {
+      if (!selectedFile) return;
+
+      const scanBtn = document.getElementById('scanBtn');
+      const inlineError = document.getElementById('inlineError');
+      const demoNotice = document.getElementById('demoNotice');
+      const reportCard = document.getElementById('reportCard');
+      const reportPlaceholder = document.getElementById('reportPlaceholder');
+      const stages = document.getElementById('stages');
+
+      scanBtn.disabled = true;
+      scanBtn.textContent = 'Scanning...';
+      inlineError.classList.remove('visible');
+      demoNotice.classList.remove('visible');
+      reportCard.classList.remove('visible');
+      reportPlaceholder.style.display = 'none';
+
+      stages.classList.add('visible');
+      setStage(1, 'active');
+      setStage(2, 'idle');
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        await delay(500); // Visual stage delay
+        const response = await fetch(`${API_URL}/detect`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || `Server responded with ${response.status}`);
+        }
+
+        // Handle Stage progression animations
+        if (data.is_attack) {
+          setStage(1, 'attack');
+          await delay(600);
+          setStage(2, 'active');
+          await delay(700);
+          setStage(2, 'attack');
+        } else {
+          setStage(1, 'done');
+          await delay(400);
+          setStage(2, 'done');
+        }
+
+        await delay(400);
+
+        if (data.demo_mode) {
+          demoNotice.classList.add('visible');
+        }
+
+        renderReport(data);
+        saveToHistory(selectedFile.name, data);
+        updateChartsAndHistory();
+        renderThreatBreakdownPieChart(data);
+
+        if (data.is_attack) {
+          showBannerAlert(`Intrusion Detected: ${data.attack_type || 'Unknown'}`, 'danger');
+        } else {
+          showBannerAlert('Network Traffic Clean', 'success');
+        }
+
+      } catch (err) {
+        setStage(1, 'idle');
+        setStage(2, 'idle');
+        reportPlaceholder.style.display = 'block';
+        inlineError.textContent = '❌ Analysis Error: ' +
+          (err.message.includes('Failed to fetch')
+            ? 'Unable to connect to Flask backend. Please make sure python app.py is running on http://localhost:5000'
+            : err.message);
+        inlineError.classList.add('visible');
+      } finally {
+        scanBtn.disabled = false;
+        scanBtn.textContent = '⚡ Run Analytics';
+      }
+    }
+
+    // Render detailed intrusive scan report (Centered view)
+    function renderReport(data) {
+      const card = document.getElementById('reportCard');
+      const header = document.getElementById('reportHeader');
+      const verdict = document.getElementById('reportVerdict');
+      const confText = document.getElementById('reportConf');
+
+      const threatLevel = document.getElementById('statThreatLevel');
+      const attackTypeBox = document.getElementById('statAttackContainer');
+      const attackTypeVal = document.getElementById('statAttackType');
+      const flaggedFlows = document.getElementById('statFlaggedFlows');
+      const totalFlows = document.getElementById('statTotalFlows');
+
+      const summary = document.getElementById('reportSummary');
+      const actionPlanTitle = document.getElementById('actionPlanTitle');
+      const actionsList = document.getElementById('reportActions');
+
+      // Styles based on intrusion status
+      if (data.is_attack) {
+        card.className = 'report-card visible attack';
+        header.className = 'report-header attack';
+        verdict.textContent = `⚠️ INTRUSION DETECTED`;
+
+        const s1 = data.stage1_confidence ? Math.round(data.stage1_confidence * 100) : 0;
+        const s2 = data.stage2_confidence ? Math.round(data.stage2_confidence * 100) : 0;
+        confText.textContent = `Confidence: S1: ${s1}% | S2: ${s2}%`;
+
+        // Threat level determination
+        const isHigh = data.attack_info.color === 'danger';
+        threatLevel.className = `stat-value danger`;
+        threatLevel.textContent = isHigh ? 'HIGH' : 'MEDIUM';
+
+        // Attack Type
+        attackTypeBox.style.display = 'block';
+        attackTypeVal.className = 'stat-value danger';
+        attackTypeVal.textContent = data.attack_type || 'Attack';
+
+        flaggedFlows.className = 'stat-value danger';
+        flaggedFlows.textContent = data.flagged_flows.toLocaleString();
+
+        summary.className = 'summary-text attack';
+        summary.textContent = data.attack_info.summary || 'Attack patterns found in network flows.';
+
+        actionPlanTitle.style.display = 'block';
+        actionsList.style.display = 'block';
+
+        // Populate recommendation list
+        actionsList.innerHTML = '';
+        const suggestions = data.attack_info.suggestions || [];
+        suggestions.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = item;
+          actionsList.appendChild(li);
+        });
+      } else {
+        card.className = 'report-card visible benign';
+        header.className = 'report-header benign';
+        verdict.textContent = `✅ NETWORK CLEAN`;
+
+        const s1 = data.stage1_confidence ? Math.round(data.stage1_confidence * 100) : 0;
+        confText.textContent = `Confidence: ${s1}%`;
+
+        threatLevel.className = 'stat-value success';
+        threatLevel.textContent = '✅ SAFE';
+
+        attackTypeBox.style.display = 'none';
+
+        flaggedFlows.className = 'stat-value success';
+        flaggedFlows.textContent = '0';
+
+        summary.className = 'summary-text benign';
+        summary.textContent = 'No anomaly traffic detected. The network channel looks clean.';
+
+        actionPlanTitle.style.display = 'none';
+        actionsList.style.display = 'none';
+      }
+
+      totalFlows.textContent = data.total_flows.toLocaleString();
+    }
+
+    // Render threat breakdown pie chart representing ONLY the current scan
+    function renderThreatBreakdownPieChart(data) {
+      lastScanData = data;
+      const ratioCanvas = document.getElementById('ratioChart');
+      const ratioPlaceholder = document.getElementById('ratioPlaceholder');
+
+      // Destroy old instance if exists
+      if (ratioChart) {
+        ratioChart.destroy();
+        ratioChart = null;
+      }
+
+      // If network is clean/benign
+      if (!data.is_attack) {
+        ratioCanvas.style.display = 'none';
+        ratioPlaceholder.style.display = 'block';
+        ratioPlaceholder.textContent = 'No threat detected; breakdown metrics blank.';
+        return;
+      }
+
+      // Extract attack counts (support attack_breakdown, fallback to attack_counts / class_distribution)
+      const attackCountsObj = data.attack_breakdown || data.attack_counts || data.class_distribution;
+
+      if (!attackCountsObj) {
+        ratioCanvas.style.display = 'none';
+        ratioPlaceholder.style.display = 'block';
+        ratioPlaceholder.textContent = 'Detailed breakdown metrics unavailable.';
+        return;
+      }
+
+      // Format data (filtering out Benign keys)
+      const labels = [];
+      const values = [];
+      for (const [key, val] of Object.entries(attackCountsObj)) {
+        if (key.toUpperCase() !== 'BENIGN' && val > 0) {
+          labels.push(key);
+          values.push(val);
+        }
+      }
+
+      // If after filtering we have no active attack flows
+      if (labels.length === 0) {
+        ratioCanvas.style.display = 'none';
+        ratioPlaceholder.style.display = 'block';
+        ratioPlaceholder.textContent = 'Detailed breakdown metrics unavailable.';
+        return;
+      }
+
+      // Render Pie/Doughnut Chart
+      ratioPlaceholder.style.display = 'none';
+      ratioCanvas.style.display = 'block';
+
+      const ctx = ratioCanvas.getContext('2d');
+
+      // Color palette for attacks
+      const colors = ['#ff4d6a', '#ffaa3b', '#b076ff', '#3fa0ff', '#ef476f', '#ffd166', '#06d6a0'];
+
+      ratioChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: colors.slice(0, labels.length),
+            borderColor: getCSSVariable('--bg2'),
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: getChartTextColor(),
+                font: { family: 'IBM Plex Sans', size: 10 },
+                generateLabels: function (chart) {
+                  const data = chart.data;
+                  if (data.labels.length && data.datasets.length) {
+                    const dataset = data.datasets[0];
+                    const total = dataset.data.reduce((sum, val) => sum + val, 0);
+                    return data.labels.map((label, i) => {
+                      const val = dataset.data[i];
+                      const percentage = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                      return {
+                        text: `${label}: ${val.toLocaleString()} (${percentage}%)`,
+                        fillStyle: dataset.backgroundColor[i],
+                        strokeStyle: dataset.borderColor || getCSSVariable('--border'),
+                        lineWidth: dataset.borderWidth || 2,
+                        hidden: isNaN(dataset.data[i]) || chart.getDatasetMeta(0).data[i].hidden,
+                        index: i,
+                        fontColor: getChartTextColor(),
+                        color: getChartTextColor()
+                      };
+                    });
+                  }
+                  return [];
+                }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const value = context.raw;
+                  const total = context.chart.data.datasets[0].data.reduce((sum, val) => sum + val, 0);
+                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                  return ` ${context.label}: ${value.toLocaleString()} flows (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ── Local Storage Management ──
+    function saveToHistory(fileName, data) {
+      let logs = [];
+      try {
+        logs = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch (e) {
+        logs = [];
+      }
+
+      const newRecord = {
+        timestamp: new Date().toLocaleString(),
+        fileName: fileName,
+        isAttack: data.is_attack,
+        attackType: data.is_attack ? data.attack_type : 'Benign',
+        flaggedFlows: data.is_attack ? data.flagged_flows : 0,
+        totalFlows: data.total_flows,
+        confidence: data.is_attack
+          ? `${Math.round(data.stage1_confidence * 100)}% / ${Math.round(data.stage2_confidence * 100)}%`
+          : `${Math.round(data.stage1_confidence * 100)}%`,
+        rawResult: data
+      };
+
+      logs.unshift(newRecord);
+
+      if (logs.length > 10) {
+        logs = logs.slice(0, 10);
+      }
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+    }
+
+    function clearHistory() {
+      localStorage.removeItem(STORAGE_KEY);
+      lastScanData = null;
+      updateChartsAndHistory();
+      // Re-trigger visual placeholder for breakdown chart
+      if (ratioChart) {
+        ratioChart.destroy();
+        ratioChart = null;
+      }
+      document.getElementById('ratioChart').style.display = 'none';
+      const ratioPlaceholder = document.getElementById('ratioPlaceholder');
+      ratioPlaceholder.style.display = 'block';
+      ratioPlaceholder.textContent = 'No active scan results';
+    }
+
+    // Re-render Threat Log Table and Attack Class Distribution (History) Chart
+    function updateChartsAndHistory() {
+      let logs = [];
+      try {
+        logs = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch (e) {
+        logs = [];
+      }
+
+      const tableBody = document.getElementById('historyTableBody');
+      tableBody.innerHTML = '';
+
+      if (logs.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text3); padding: 24px;">
+              No analysis logs stored locally
+            </td>
+          </tr>`;
+
+        // Reset bar chart
+        document.getElementById('classChart').style.display = 'none';
+        document.getElementById('classPlaceholder').style.display = 'block';
+        if (classChart) { classChart.destroy(); classChart = null; }
+        return;
+      }
+
+      // Render table
+      logs.forEach(record => {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.title = 'Click to reload this scan result';
+        tr.addEventListener('click', () => {
+          if (record.rawResult) {
+            renderResultFromData(record.rawResult);
+            // Smooth scroll to the intrusive scan report section
+            const targetEl = document.getElementById('reportCard') || document.getElementById('reportPlaceholder');
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          } else {
+            showBannerAlert('Legacy record cannot be reloaded (missing full data).', 'danger');
+          }
+        });
+
+        const badgeClass = record.isAttack ? 'verdict-tag attack' : 'verdict-tag benign';
+        const ratioPercent = record.totalFlows > 0 ? Math.round((record.flaggedFlows / record.totalFlows) * 100) : 0;
+
+        tr.innerHTML = `
+          <td>${record.timestamp}</td>
+          <td style="font-family: var(--mono);">${record.fileName}</td>
+          <td><span class="${badgeClass}">${record.attackType}</span></td>
+          <td>${record.flaggedFlows.toLocaleString()} / ${record.totalFlows.toLocaleString()} (${ratioPercent}%)</td>
+          <td style="font-family: var(--mono);">${record.confidence}</td>
+        `;
+        tableBody.appendChild(tr);
+      });
+
+      // Show/update historical Attack Distribution Chart
+      document.getElementById('classChart').style.display = 'block';
+      document.getElementById('classPlaceholder').style.display = 'none';
+
+      const attackDistribution = {};
+      logs.forEach(rec => {
+        if (rec.isAttack) {
+          const type = rec.attackType || 'Unknown';
+          attackDistribution[type] = (attackDistribution[type] || 0) + 1;
+        }
+      });
+
+      if (classChart) {
+        classChart.destroy();
+      }
+
+      const classLabels = Object.keys(attackDistribution);
+      const classValues = Object.values(attackDistribution);
+      const classCanvas = document.getElementById('classChart');
+
+      if (classLabels.length === 0) {
+        classCanvas.style.display = 'none';
+        document.getElementById('classPlaceholder').style.display = 'block';
+        document.getElementById('classPlaceholder').textContent = 'No threat attacks logged yet';
+      } else {
+        const classCtx = classCanvas.getContext('2d');
+        classChart = new Chart(classCtx, {
+          type: 'bar',
+          data: {
+            labels: classLabels,
+            datasets: [{
+              label: 'Occurrences',
+              data: classValues,
+              backgroundColor: '#be123c',
+              borderColor: '#be123c',
+              borderWidth: 1,
+              barThickness: 16
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: getChartTextColor(),
+                  font: { family: 'IBM Plex Mono', size: 10 },
+                  stepSize: 1
+                },
+                grid: { color: getChartGridColor() }
+              },
+              x: {
+                ticks: {
+                  color: getChartTextColor(),
+                  font: { family: 'IBM Plex Sans', size: 9 }
+                },
+                grid: { display: false }
+              }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+      }
+    }
+
+    // Render a historical scan result from its raw data
+    function renderResultFromData(result) {
+      // Hide placeholders, show report card
+      document.getElementById('reportPlaceholder').style.display = 'none';
+      document.getElementById('reportCard').classList.add('visible');
+
+      // Update stage pills immediately to reflect scan verdict
+      const stages = document.getElementById('stages');
+      stages.classList.add('visible');
+      if (result.is_attack) {
+        setStage(1, 'attack');
+        setStage(2, 'attack');
+      } else {
+        setStage(1, 'done');
+        setStage(2, 'done');
+      }
+
+      // Render report details
+      renderReport(result);
+
+      // Render ratio pie chart
+      renderThreatBreakdownPieChart(result);
+
+      // Keep lastScanData reference updated (so theme switching updates charts correctly)
+      lastScanData = result;
+
+      // Handle demo notice if it was a demo-mode scan
+      const demoNotice = document.getElementById('demoNotice');
+      if (result.demo_mode) {
+        demoNotice.classList.add('visible');
+      } else {
+        demoNotice.classList.remove('visible');
+      }
+    }
+
+    // ── Modal Handlers ──
+    function openModal() {
+      const modal = document.getElementById('howItWorksModal');
+      modal.classList.add('visible');
+      // Trigger animation for algorithm comparison bars
+      setTimeout(() => {
+        document.querySelectorAll('#howItWorksModal .algo-bar').forEach(bar => {
+          const targetWidth = bar.getAttribute('data-w');
+          bar.style.width = targetWidth + '%';
+        });
+      }, 150);
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('howItWorksModal');
+      modal.classList.remove('visible');
+      document.querySelectorAll('#howItWorksModal .algo-bar').forEach(bar => {
+        bar.style.width = '0%';
+      });
+    }
+
+    function closeModalOnOuterClick(event) {
+      if (event.target.id === 'howItWorksModal') {
+        closeModal();
+      }
+    }
+  </script>
+</body>
+
+</html>

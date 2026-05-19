@@ -1,0 +1,1704 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetGuard AI — Live Traffic Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      /* Day (Light) Mode - High Contrast and Clean */
+      --bg: #f1f5f9;
+      --bg2: #ffffff;
+      --bg3: #e2e8f0;
+      --card-bg: #ffffff;
+      --border: #cbd5e1;
+      --border2: #94a3b8;
+      --text: #0f172a;
+      --text2: #334155;
+      --text3: #64748b;
+      --green: #0f766e;
+      --green-bg: rgba(15, 118, 110, 0.08);
+      --green2: #0d9488;
+      --red: #be123c;
+      --red-bg: rgba(190, 18, 60, 0.08);
+      --red2: #e11d48;
+      --amber: #b45309;
+      --amber-bg: rgba(180, 83, 9, 0.08);
+      --blue: #0369a1;
+      --blue-bg: rgba(3, 105, 161, 0.08);
+      --purple: #6d28d9;
+      --btn-text: #ffffff;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
+      --chart-legend-color: #000000;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg: #080b10;
+      --bg2: #0f131a;
+      --bg3: #151b26;
+      --card-bg: #111622;
+      --border: #1b2433;
+      --border2: #28354d;
+      --text: #d1dcef;
+      --text2: #7b8fae;
+      --text3: #4a5c78;
+      --green: #00f0a8;
+      --green-bg: rgba(0, 240, 168, 0.08);
+      --green2: #00b37d;
+      --red: #ff4d6a;
+      --red-bg: rgba(255, 77, 106, 0.08);
+      --red2: #d6304d;
+      --amber: #ffaa3b;
+      --amber-bg: rgba(255, 170, 59, 0.08);
+      --blue: #3fa0ff;
+      --blue-bg: rgba(63, 160, 255, 0.08);
+      --purple: #b076ff;
+      --btn-text: #000000;
+      --shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+      --chart-legend-color: #ffffff;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    /* Scanline overlay (Dark mode only) */
+    html[data-theme="dark"] body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.02) 2px, rgba(0, 0, 0, 0.02) 4px);
+    }
+
+    /* Top Banner Alerts */
+    .alert-banner {
+      position: fixed;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10000;
+      padding: 16px 32px;
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: var(--shadow);
+      transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid;
+      min-width: 320px;
+      justify-content: center;
+    }
+
+    .alert-banner.visible {
+      top: 24px;
+    }
+
+    .alert-banner.alert-danger {
+      background: var(--red-bg);
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    .alert-banner.alert-success {
+      background: var(--green-bg);
+      color: var(--green);
+      border-color: var(--green);
+    }
+
+    /* Shell Grid Layout */
+    .shell {
+      display: grid;
+      grid-template-rows: 64px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--green);
+      letter-spacing: 0.05em;
+    }
+
+    .logo-pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.4);
+      }
+
+      50% {
+        box-shadow: 0 0 0 8px rgba(15, 118, 110, 0);
+      }
+    }
+
+    [data-theme="dark"] .logo-pulse {
+      animation: pulse-dark 2.5s infinite;
+    }
+
+    @keyframes pulse-dark {
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(0, 240, 168, 0.4);
+      }
+
+      50% {
+        box-shadow: 0 0 0 8px rgba(0, 240, 168, 0);
+      }
+    }
+
+    .logo-slash {
+      color: var(--text3);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 16px;
+      margin-left: 28px;
+      margin-right: auto;
+    }
+
+    .nav-item {
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text2);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid transparent;
+    }
+
+    .nav-item:hover {
+      color: var(--text);
+      background: var(--bg3);
+    }
+
+    .nav-item.active {
+      color: var(--green);
+      background: var(--green-bg);
+      border-color: var(--green2);
+    }
+
+    .header-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 10px;
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      color: var(--text2);
+      background: var(--bg3);
+    }
+
+    .btn-help {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text2);
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-help:hover {
+      background: var(--bg3);
+      border-color: var(--border2);
+      color: var(--text);
+    }
+
+    /* Main Grid Structure */
+    .main-container {
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      overflow-y: auto;
+    }
+
+    .live-container {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 24px;
+      max-width: 1400px;
+      width: 100%;
+    }
+
+    @media (max-width: 1000px) {
+      .live-container {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+    }
+
+    .section-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      color: var(--text3);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title span {
+      color: var(--green);
+    }
+
+    /* Cards */
+    .control-card, .terminal-card, .report-card, .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .control-card {
+      margin-bottom: 24px;
+    }
+
+    /* Input & Labels */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 13px;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--green);
+      background: var(--bg2);
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: 4px;
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: var(--btn-text);
+    }
+
+    .btn-primary:hover {
+      background: var(--green2);
+    }
+
+    .btn-primary:disabled {
+      background: var(--bg3);
+      color: var(--text3);
+      border-color: var(--border);
+      cursor: not-allowed;
+    }
+
+    /* Terminal Output styling */
+    .terminal-card {
+      display: flex;
+      flex-direction: column;
+      height: 380px;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed var(--border);
+    }
+
+    .terminal-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .terminal-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text3);
+      transition: background 0.3s;
+    }
+
+    .terminal-status-dot.active {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: blink 1.2s infinite alternate;
+    }
+
+    @keyframes blink {
+      0% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    .terminal-body {
+      background: #06090e;
+      color: #38bdf8;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 14px;
+      border-radius: 6px;
+      flex: 1;
+      overflow-y: auto;
+      line-height: 1.6;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+      border: 1px solid #161f30;
+    }
+
+    .log-line {
+      margin-bottom: 6px;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .log-time {
+      color: #4a5c78;
+      flex-shrink: 0;
+    }
+
+    .log-text.info {
+      color: #cbd5e1;
+    }
+
+    .log-text.success {
+      color: #4ade80;
+    }
+
+    .log-text.warning {
+      color: #fbbf24;
+    }
+
+    .log-text.danger {
+      color: #f87171;
+    }
+
+    /* Results styling */
+    .report-card {
+      display: none;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .report-card.visible {
+      display: block;
+    }
+
+    .report-card.benign {
+      border-color: var(--green2);
+    }
+
+    .report-card.attack {
+      border-color: var(--red2);
+    }
+
+    .report-header {
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    .report-header.benign {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+
+    .report-header.attack {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    .report-body {
+      padding: 20px;
+    }
+
+    .report-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat-box {
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      padding: 12px;
+      border-radius: 5px;
+    }
+
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .stat-value.danger {
+      color: var(--red);
+    }
+
+    .stat-value.warning {
+      color: var(--amber);
+    }
+
+    .stat-value.success {
+      color: var(--green);
+    }
+
+    .summary-text {
+      background: var(--bg3);
+      border-left: 3px solid var(--border2);
+      padding: 12px;
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.6;
+      border-radius: 0 4px 4px 0;
+      margin-bottom: 18px;
+    }
+
+    .summary-text.benign {
+      border-left-color: var(--green2);
+    }
+
+    .summary-text.attack {
+      border-left-color: var(--red2);
+    }
+
+    .actions-list {
+      list-style: none;
+    }
+
+    .actions-list li {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 10px;
+      font-size: 12.5px;
+      color: var(--text2);
+      line-height: 1.5;
+    }
+
+    .actions-list li::before {
+      content: '⚡';
+      position: absolute;
+      left: 0;
+      color: var(--amber);
+      font-size: 11px;
+    }
+
+    /* Charts */
+    .visuals-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .visuals-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .chart-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+      height: 280px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chart-placeholder {
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 11px;
+      text-align: center;
+      padding: 20px;
+    }
+
+    /* Alert Banner / Errors */
+    .alert-box {
+      display: none;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: var(--mono);
+      line-height: 1.5;
+      margin-bottom: 16px;
+      border: 1px solid;
+    }
+
+    .alert-box.visible {
+      display: block;
+    }
+
+    .alert-box.warning {
+      background: var(--amber-bg);
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    .alert-box.danger {
+      background: var(--red-bg);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    /* Demo Notice Box */
+    #demoNotice {
+      margin-bottom: 24px;
+    }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 10001;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-content {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      width: 90%;
+      max-width: 580px;
+      max-height: 85vh;
+      padding: 24px;
+      overflow-y: auto;
+      position: relative;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+      transform: translateY(-20px);
+      transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.visible .modal-content {
+      transform: translateY(0);
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      font-size: 24px;
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      transition: color 0.2s;
+      line-height: 1;
+    }
+
+    .modal-close:hover {
+      color: var(--text);
+    }
+
+    .modal-title {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: 20px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .doc-step {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .doc-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green2);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+
+    .doc-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .doc-desc {
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.5;
+    }
+
+    .doc-tag {
+      display: inline-flex;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--blue);
+    }
+
+    .sidebar-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 16px 0;
+    }
+
+    .algo-section-title,
+    .attack-types-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+
+    .algo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .algo-name {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text2);
+      width: 95px;
+      flex-shrink: 0;
+    }
+
+    .algo-bar-bg {
+      flex: 1;
+      height: 4px;
+      background: var(--bg3);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .algo-bar {
+      height: 100%;
+      border-radius: 2px;
+      background: currentColor;
+      transition: width 1.2s cubic-bezier(0.1, 0.8, 0.2, 1);
+    }
+
+    .algo-val {
+      font-family: var(--mono);
+      font-size: 11px;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .attack-tag-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .attack-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 3px;
+      color: var(--text2);
+      background: var(--bg3);
+    }
+
+    .dataset-note {
+      margin-top: 16px;
+      padding: 12px;
+      background: var(--bg3);
+      border-radius: 6px;
+      font-size: 11.5px;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+
+    .dataset-note strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+  </style>
+  <!-- Non-flash theme execution block -->
+  <script>
+    (function () {
+      const savedTheme = localStorage.getItem('netguard_theme') || 'light';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      if (savedTheme === 'dark') {
+        document.documentElement.style.setProperty('--chart-legend-color', '#ffffff');
+      } else {
+        document.documentElement.style.setProperty('--chart-legend-color', '#000000');
+      }
+    })();
+  </script>
+</head>
+
+<body>
+
+  <!-- Top Alert Banner -->
+  <div class="alert-banner" id="alertBanner">
+    <span id="alertIcon">⚠️</span>
+    <span id="alertMessage">Banner warning alert text placeholder.</span>
+  </div>
+
+  <!-- Documentation Modal -->
+  <div class="modal-overlay" id="docModal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">×</button>
+      <div class="modal-title">▸ How it works</div>
+
+      <!-- Steps -->
+      <div class="doc-step">
+        <div class="doc-num">01</div>
+        <div>
+          <div class="doc-title">Packet Capturing & Sniffing</div>
+          <div class="doc-desc">
+            Raw traffic flows are captured dynamically from active network adapter cards via Scapy.
+            Packets are temporarily gathered in a local buffer stream.
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-step">
+        <div class="doc-num">02</div>
+        <div>
+          <div class="doc-title">Flow Extraction (CICIDS2017 Format)</div>
+          <div class="doc-desc">
+            Packets are grouped into bidirectional IP network flows based on their 5-tuple
+            <span class="doc-tag">SrcIP</span>, <span class="doc-tag">DstIP</span>,
+            <span class="doc-tag">SrcPort</span>, <span class="doc-tag">DstPort</span>, and
+            <span class="doc-tag">Protocol</span>. 78 statistical properties are calculated.
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-step">
+        <div class="doc-num">03</div>
+        <div>
+          <div class="doc-title">XGBoost Stage-1 Classification</div>
+          <div class="doc-desc">
+            Calculated features are passed to a Binary Classifier. The model calculates the
+            likelihood that each individual traffic flow is malicious or safe.
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-step">
+        <div class="doc-num">04</div>
+        <div>
+          <div class="doc-title">XGBoost Stage-2 Attack Taxonomy</div>
+          <div class="doc-desc">
+            Malicious flows are routed into the Multiclass Classifier. It classifies the
+            anomaly class (e.g. DDoS, Port Scan, Botnet) to outline precise actions.
+          </div>
+        </div>
+      </div>
+
+      <hr class="sidebar-divider" />
+
+      <!-- F1 Score Bars -->
+      <div class="algo-section-title">Model comparison — F1 score</div>
+      <div class="algo-row">
+        <span class="algo-name">XGBoost NIDS</span>
+        <div class="algo-bar-bg">
+          <div class="algo-bar" style="width: 98.7%; color: var(--green);"></div>
+        </div>
+        <span class="algo-val" style="color:var(--green)">98.7%</span>
+      </div>
+
+      <div class="algo-row">
+        <span class="algo-name">Random Forest</span>
+        <div class="algo-bar-bg">
+          <div class="algo-bar" style="width: 95.1%; color: var(--blue);"></div>
+        </div>
+        <span class="algo-val" style="color:var(--blue)">95.1%</span>
+      </div>
+
+      <div class="algo-row">
+        <span class="algo-name">Decision Tree</span>
+        <div class="algo-bar-bg">
+          <div class="algo-bar" style="width: 91.4%; color: var(--text2);"></div>
+        </div>
+        <span class="algo-val" style="color:var(--text2)">91.4%</span>
+      </div>
+
+      <hr class="sidebar-divider" />
+
+      <!-- Detectable Types -->
+      <div class="attack-types-title">Detectable attack types</div>
+      <div class="attack-tag-grid">
+        <span class="attack-tag">DDoS</span>
+        <span class="attack-tag">Port Scan</span>
+        <span class="attack-tag">Brute Force</span>
+        <span class="attack-tag">Bot / C2</span>
+        <span class="attack-tag">Web Attack</span>
+        <span class="attack-tag">Infiltration</span>
+        <span class="attack-tag">Heartbleed</span>
+      </div>
+
+      <div class="dataset-note">
+        <strong>Training data:</strong> CICIDS2017 — a widely-used benchmark dataset built
+        by the Canadian Institute for Cybersecurity. It contains real benign traffic mixed
+        with labeled attacks captured in a controlled environment.
+      </div>
+    </div>
+  </div>
+
+  <div class="shell">
+
+    <!-- Topbar -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-pulse"></div>
+        NETGUARD<span class="logo-slash">/</span>ANALYTICS
+      </div>
+      <nav class="nav-links">
+        <a href="dashboard.html" class="nav-item">Dashboard</a>
+        <a href="live_monitor.html" class="nav-item active">Live Monitor</a>
+      </nav>
+      <div class="header-info">
+        <span class="badge">XGBoost ML</span>
+        <span class="badge">CICIDS2017 Model</span>
+        <span class="badge" style="color: var(--green); border-color: var(--green);">Realtime Sniffer</span>
+        <button id="themeToggleBtn" class="btn-help" onclick="toggleTheme()"></button>
+        <button class="btn-help" onclick="openModal()">
+          📘 How it works
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="main-container">
+
+      <div class="live-container">
+
+        <!-- Column 1: Controls & Logs -->
+        <div>
+          <div class="section-title"><span>//</span> Monitor Control</div>
+          <div class="control-card">
+            <div class="form-group">
+              <label class="form-label" for="durationInput">Sniffing Duration (seconds)</label>
+              <input type="number" id="durationInput" class="form-input" min="5" max="120" value="30" />
+              <div style="font-size: 11px; color: var(--text3); margin-top: 6px;">
+                Range: 5 to 120 seconds. Recommended: 30s.
+              </div>
+            </div>
+            <button id="startBtn" class="btn btn-primary" onclick="startLiveCapture()">
+              📡 Start Realtime Detection
+            </button>
+          </div>
+
+          <div class="section-title"><span>//</span> Live Capture Console</div>
+          <div class="terminal-card">
+            <div class="terminal-header">
+              <span class="terminal-title">Sniffer Output Shell</span>
+              <div id="terminalDot" class="terminal-status-dot"></div>
+            </div>
+            <div id="terminalBody" class="terminal-body">
+              <div class="log-line">
+                <span class="log-time">[System]</span>
+                <span class="log-text info">Console initialized. Ready to start capture.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 2: Reports & Visualizations -->
+        <div>
+          <div class="section-title"><span>//</span> Live Detection Report</div>
+
+          <!-- Error Alert Panel -->
+          <div id="inlineError" class="alert-box danger"></div>
+          <div id="demoNotice" class="alert-box warning">
+            ⚠️ <strong>Demo Mode active:</strong> Backend is running without models loaded. Showing simulated ML responses.
+          </div>
+
+          <!-- Report Card -->
+          <div id="reportCard" class="report-card">
+            <div class="report-header" id="reportHeader">
+              <span id="reportVerdict">Verdict</span>
+              <span id="reportConf" style="font-size: 11px; opacity: 0.8;">Confidence</span>
+            </div>
+
+            <div class="report-body">
+              <div class="report-grid">
+                <div class="stat-box" id="statThreatContainer">
+                  <div class="stat-label">Threat Severity</div>
+                  <div class="stat-value" id="statThreatLevel">NORMAL</div>
+                </div>
+
+                <div class="stat-box" id="statAttackContainer" style="display: none;">
+                  <div class="stat-label">Primary Attack Vector</div>
+                  <div class="stat-value" id="statAttackType">-</div>
+                </div>
+
+                <div class="stat-box">
+                  <div class="stat-label">Flagged Malicious Flows</div>
+                  <div class="stat-value" id="statFlaggedFlows">0</div>
+                </div>
+
+                <div class="stat-box">
+                  <div class="stat-label">Total Analyzed Flows</div>
+                  <div class="stat-value" id="statTotalFlows">0</div>
+                </div>
+              </div>
+
+              <div class="summary-text" id="reportSummary">
+                Summary details...
+              </div>
+
+              <div id="actionPlanTitle" class="section-title" style="margin-bottom: 8px; color: var(--text2)">
+                <span>▸</span> Recommended Action Plan
+              </div>
+              <ul id="reportActions" class="actions-list">
+                <!-- Actions will go here -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- Placeholder when idle -->
+          <div id="reportPlaceholder" class="chart-placeholder"
+            style="border: 1px dashed var(--border); border-radius: 8px; background: var(--card-bg); height: 200px; display: flex; align-items: center; justify-content: center;">
+            No live metrics computed yet. Click "Start Realtime Detection" to gather traffic analysis.
+          </div>
+
+          <!-- Chart row -->
+          <div class="visuals-row" style="margin-top: 24px;">
+            <div>
+              <div class="section-title"><span>//</span> Threat Breakdown (Current Run)</div>
+              <div class="chart-card">
+                <div class="chart-wrapper">
+                  <canvas id="ratioChart" style="display: none;"></canvas>
+                  <div id="ratioPlaceholder" class="chart-placeholder">Run diagnostics to view threat breakdown</div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="section-title"><span>//</span> Flow Classification (Current Run)</div>
+              <div class="chart-card">
+                <div class="chart-wrapper">
+                  <canvas id="classChart" style="display: none;"></canvas>
+                  <div id="classPlaceholder" class="chart-placeholder">Run diagnostics to view distribution</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:5000';
+    let ratioChart = null;
+    let classChart = null;
+    let lastScanData = null;
+    let captureTimer = null;
+
+    const STORAGE_KEY = 'netguard_scan_history';
+
+    // Helper to retrieve resolved CSS custom property colors programmatically
+    function getCSSVariable(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    // Chart colors according to user specification
+    function getChartTextColor() {
+      const theme = document.documentElement.getAttribute('data-theme') || 'light';
+      return theme === 'dark' ? '#ffffff' : '#000000';
+    }
+
+    function getChartGridColor() {
+      const theme = document.documentElement.getAttribute('data-theme') || 'light';
+      return theme === 'dark' ? '#28354d' : '#cbd5e1';
+    }
+
+    // Theme Management functions
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', newTheme);
+
+      // Dynamically set --chart-legend-color CSS variable on root
+      if (newTheme === 'dark') {
+        document.documentElement.style.setProperty('--chart-legend-color', '#ffffff');
+      } else {
+        document.documentElement.style.setProperty('--chart-legend-color', '#000000');
+      }
+
+      localStorage.setItem('netguard_theme', newTheme);
+      updateThemeButton(newTheme);
+      updateChartsTheme();
+    }
+
+    function updateThemeButton(theme) {
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) {
+        if (theme === 'dark') {
+          btn.innerHTML = '☀️ Light Mode';
+        } else {
+          btn.innerHTML = '🌙 Dark Mode';
+        }
+      }
+    }
+
+    function updateChartsTheme() {
+      if (lastScanData) {
+        renderCharts(lastScanData);
+      }
+    }
+
+    // Page initialization
+    document.addEventListener('DOMContentLoaded', () => {
+      const activeTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      updateThemeButton(activeTheme);
+
+      // Monitor window resize to safely handle Chart.js adjustments
+      window.addEventListener('resize', () => {
+        if (ratioChart) ratioChart.resize();
+        if (classChart) classChart.resize();
+      });
+    });
+
+    // Header Sliding Alert Banner
+    function showBannerAlert(message, type) {
+      const banner = document.getElementById('alertBanner');
+      const icon = document.getElementById('alertIcon');
+      const msg = document.getElementById('alertMessage');
+
+      msg.textContent = message;
+      if (type === 'danger') {
+        banner.className = 'alert-banner alert-danger visible';
+        icon.textContent = '⚠️';
+      } else {
+        banner.className = 'alert-banner alert-success visible';
+        icon.textContent = '✅';
+      }
+
+      setTimeout(() => {
+        banner.classList.remove('visible');
+      }, 5000);
+    }
+
+    // Terminal Logging Functions
+    function addLog(text, type = 'info') {
+      const terminalBody = document.getElementById('terminalBody');
+      if (!terminalBody) return;
+
+      const line = document.createElement('div');
+      line.className = 'log-line';
+
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0];
+
+      line.innerHTML = `
+        <span class="log-time">[${timeStr}]</span>
+        <span class="log-text ${type}">${text}</span>
+      `;
+      terminalBody.appendChild(line);
+      terminalBody.scrollTop = terminalBody.scrollHeight;
+    }
+
+    function clearLogs() {
+      const terminalBody = document.getElementById('terminalBody');
+      if (terminalBody) {
+        terminalBody.innerHTML = '';
+      }
+    }
+
+    // Realtime Monitor Trigger
+    async function startLiveCapture() {
+      const durationInput = document.getElementById('durationInput');
+      const startBtn = document.getElementById('startBtn');
+      const inlineError = document.getElementById('inlineError');
+      const demoNotice = document.getElementById('demoNotice');
+      const reportCard = document.getElementById('reportCard');
+      const reportPlaceholder = document.getElementById('reportPlaceholder');
+      const terminalDot = document.getElementById('terminalDot');
+
+      const duration = parseInt(durationInput.value);
+      if (isNaN(duration) || duration < 5 || duration > 120) {
+        showBannerAlert("Duration must be between 5 and 120 seconds", "danger");
+        return;
+      }
+
+      // UI state setup
+      startBtn.disabled = true;
+      startBtn.textContent = '📡 Sniffing Packets...';
+      terminalDot.classList.add('active');
+      inlineError.classList.remove('visible');
+      demoNotice.classList.remove('visible');
+      reportCard.classList.remove('visible');
+      reportPlaceholder.style.display = 'flex';
+      reportPlaceholder.textContent = 'Capture in progress. Observing traffic packets...';
+
+      clearLogs();
+      addLog("Initializing Network Packet Monitor...", "info");
+      addLog(`Preparing Scapy sniffer stream. Duration window: ${duration}s`, "info");
+      addLog("Note: Windows systems require Npcap installed, and Administrator privileges.", "warning");
+      addLog("Sending POST request to /live/capture to begin socket reading...", "info");
+
+      let elapsed = 0;
+      if (captureTimer) clearInterval(captureTimer);
+
+      // Start simulated timer counting up to duration
+      captureTimer = setInterval(() => {
+        elapsed++;
+        if (elapsed <= duration) {
+          addLog(`⚡ Sniffing network interfaces... ${elapsed}/${duration} seconds elapsed`, "info");
+        } else {
+          clearInterval(captureTimer);
+          addLog("📥 Monitor window ended. Processing PCAP buffer...", "success");
+        }
+      }, 1000);
+
+      try {
+        const response = await fetch(`${API_URL}/live/capture`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ duration: duration })
+        });
+
+        if (captureTimer) clearInterval(captureTimer);
+        terminalDot.classList.remove('active');
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || `Server responded with status ${response.status}`);
+        }
+
+        addLog("✓ Captured packets extracted to flows successfully.", "success");
+        addLog("🧠 Executing XGBoost intrusion analytics models...", "info");
+        
+        if (data.is_attack) {
+          addLog(`⚠ INTRUSION KEY TRIGGERED: ${data.attack_type}`, "danger");
+          addLog(`Flagged flows count: ${data.flagged_flows} / ${data.total_flows}`, "danger");
+        } else {
+          addLog("✓ No intrusive flows detected. Clean network snapshot.", "success");
+        }
+
+        if (data.demo_mode) {
+          demoNotice.classList.add('visible');
+          addLog("ℹ Models not loaded in backend; running simulated analysis.", "warning");
+        }
+
+        // Render Results
+        reportPlaceholder.style.display = 'none';
+        renderReport(data);
+        renderCharts(data);
+
+        // Save to History Shared Key
+        saveToHistory(`Live Sniff (${duration}s)`, data);
+
+        if (data.is_attack) {
+          showBannerAlert(`Intrusion Detected: ${data.attack_type}`, 'danger');
+        } else {
+          showBannerAlert('Network Traffic Clean', 'success');
+        }
+
+      } catch (err) {
+        if (captureTimer) clearInterval(captureTimer);
+        terminalDot.classList.remove('active');
+
+        addLog(`❌ Error: ${err.message}`, "danger");
+        reportPlaceholder.style.display = 'flex';
+        reportPlaceholder.textContent = 'An error occurred during packet capturing.';
+
+        inlineError.textContent = '❌ Monitor Error: ' +
+          (err.message.includes('Failed to fetch')
+            ? 'Unable to connect to Flask backend. Please make sure python app.py is running on http://localhost:5000'
+            : err.message);
+        inlineError.classList.add('visible');
+      } finally {
+        startBtn.disabled = false;
+        startBtn.textContent = '📡 Start Realtime Detection';
+      }
+    }
+
+    // Render detailed intrusive scan report
+    function renderReport(data) {
+      const card = document.getElementById('reportCard');
+      const header = document.getElementById('reportHeader');
+      const verdict = document.getElementById('reportVerdict');
+      const confText = document.getElementById('reportConf');
+
+      const threatLevel = document.getElementById('statThreatLevel');
+      const attackTypeBox = document.getElementById('statAttackContainer');
+      const attackTypeVal = document.getElementById('statAttackType');
+      const flaggedFlows = document.getElementById('statFlaggedFlows');
+      const totalFlows = document.getElementById('statTotalFlows');
+
+      const summary = document.getElementById('reportSummary');
+      const actionPlanTitle = document.getElementById('actionPlanTitle');
+      const actionsList = document.getElementById('reportActions');
+
+      card.classList.remove('benign', 'attack');
+      header.classList.remove('benign', 'attack');
+
+      if (data.is_attack) {
+        card.className = 'report-card visible attack';
+        header.className = 'report-header attack';
+        verdict.textContent = `⚠️ INTRUSION DETECTED`;
+
+        const s1 = data.stage1_confidence ? Math.round(data.stage1_confidence * 100) : 0;
+        const s2 = data.stage2_confidence ? Math.round(data.stage2_confidence * 100) : 0;
+        confText.textContent = `Confidence: S1: ${s1}% | S2: ${s2}%`;
+
+        const isHigh = data.attack_info.color === 'danger';
+        threatLevel.className = `stat-value danger`;
+        threatLevel.textContent = isHigh ? 'HIGH' : 'MEDIUM';
+
+        attackTypeBox.style.display = 'block';
+        attackTypeVal.className = 'stat-value danger';
+        attackTypeVal.textContent = data.attack_type || 'Attack';
+
+        flaggedFlows.className = 'stat-value danger';
+        flaggedFlows.textContent = data.flagged_flows.toLocaleString();
+
+        summary.className = 'summary-text attack';
+        summary.textContent = data.attack_info.summary || 'Attack patterns found in network flows.';
+
+        actionPlanTitle.style.display = 'block';
+        actionsList.style.display = 'block';
+
+        actionsList.innerHTML = '';
+        const suggestions = data.attack_info.suggestions || [];
+        suggestions.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = item;
+          actionsList.appendChild(li);
+        });
+      } else {
+        card.className = 'report-card visible benign';
+        header.className = 'report-header benign';
+        verdict.textContent = `✅ NETWORK CLEAN`;
+
+        const s1 = data.stage1_confidence ? Math.round(data.stage1_confidence * 100) : 0;
+        confText.textContent = `Confidence: ${s1}%`;
+
+        threatLevel.className = 'stat-value success';
+        threatLevel.textContent = 'NORMAL';
+
+        attackTypeBox.style.display = 'none';
+
+        flaggedFlows.className = 'stat-value success';
+        flaggedFlows.textContent = '0';
+
+        summary.className = 'summary-text benign';
+        summary.textContent = 'No anomaly traffic detected. The network channel looks clean.';
+
+        actionPlanTitle.style.display = 'none';
+        actionsList.style.display = 'none';
+      }
+
+      totalFlows.textContent = data.total_flows.toLocaleString();
+    }
+
+    // Render Pie & Bar charts for the current live capture
+    function renderCharts(data) {
+      lastScanData = data;
+      renderPieChart(data);
+      renderBarChart(data);
+    }
+
+    function renderPieChart(data) {
+      const ratioCanvas = document.getElementById('ratioChart');
+      const ratioPlaceholder = document.getElementById('ratioPlaceholder');
+
+      if (ratioChart) {
+        ratioChart.destroy();
+        ratioChart = null;
+      }
+
+      if (!data.is_attack) {
+        ratioCanvas.style.display = 'none';
+        ratioPlaceholder.style.display = 'flex';
+        ratioPlaceholder.textContent = 'No threat detected; classification ratio blank.';
+        return;
+      }
+
+      const attackCountsObj = data.attack_breakdown || data.attack_counts || data.class_distribution;
+      if (!attackCountsObj) {
+        ratioCanvas.style.display = 'none';
+        ratioPlaceholder.style.display = 'flex';
+        ratioPlaceholder.textContent = 'Breakdown metrics unavailable.';
+        return;
+      }
+
+      const labels = [];
+      const values = [];
+      for (const [key, val] of Object.entries(attackCountsObj)) {
+        if (key.toUpperCase() !== 'BENIGN' && val > 0) {
+          labels.push(key);
+          values.push(val);
+        }
+      }
+
+      if (labels.length === 0) {
+        ratioCanvas.style.display = 'none';
+        ratioPlaceholder.style.display = 'flex';
+        ratioPlaceholder.textContent = 'No threat detected; classification ratio blank.';
+        return;
+      }
+
+      ratioPlaceholder.style.display = 'none';
+      ratioCanvas.style.display = 'block';
+
+      const ctx = ratioCanvas.getContext('2d');
+      const colors = ['#ff4d6a', '#ffaa3b', '#b076ff', '#3fa0ff', '#ef476f', '#ffd166', '#06d6a0'];
+
+      ratioChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: colors.slice(0, labels.length),
+            borderColor: getCSSVariable('--bg2'),
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: getChartTextColor(),
+                font: { family: 'IBM Plex Sans', size: 10 },
+                generateLabels: function (chart) {
+                  const data = chart.data;
+                  if (data.labels.length && data.datasets.length) {
+                    const dataset = data.datasets[0];
+                    const total = dataset.data.reduce((sum, val) => sum + val, 0);
+                    return data.labels.map((label, i) => {
+                      const val = dataset.data[i];
+                      const percentage = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                      return {
+                        text: `${label}: ${val.toLocaleString()} (${percentage}%)`,
+                        fillStyle: dataset.backgroundColor[i],
+                        strokeStyle: dataset.borderColor || getCSSVariable('--border'),
+                        lineWidth: dataset.borderWidth || 2,
+                        hidden: isNaN(dataset.data[i]) || chart.getDatasetMeta(0).data[i].hidden,
+                        index: i,
+                        fontColor: getChartTextColor(),
+                        color: getChartTextColor()
+                      };
+                    });
+                  }
+                  return [];
+                }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const value = context.raw;
+                  const total = context.chart.data.datasets[0].data.reduce((sum, val) => sum + val, 0);
+                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                  return ` ${context.label}: ${value.toLocaleString()} flows (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderBarChart(data) {
+      const classCanvas = document.getElementById('classChart');
+      const classPlaceholder = document.getElementById('classPlaceholder');
+
+      if (classChart) {
+        classChart.destroy();
+        classChart = null;
+      }
+
+      if (!data.is_attack) {
+        classCanvas.style.display = 'none';
+        classPlaceholder.style.display = 'flex';
+        classPlaceholder.textContent = 'No threat detected; classification distribution blank.';
+        return;
+      }
+
+      const attackCountsObj = data.attack_breakdown || data.attack_counts || data.class_distribution;
+      if (!attackCountsObj) {
+        classCanvas.style.display = 'none';
+        classPlaceholder.style.display = 'flex';
+        classPlaceholder.textContent = 'Distribution metrics unavailable.';
+        return;
+      }
+
+      const labels = [];
+      const values = [];
+      for (const [key, val] of Object.entries(attackCountsObj)) {
+        if (key.toUpperCase() !== 'BENIGN' && val > 0) {
+          labels.push(key);
+          values.push(val);
+        }
+      }
+
+      if (labels.length === 0) {
+        classCanvas.style.display = 'none';
+        classPlaceholder.style.display = 'flex';
+        classPlaceholder.textContent = 'No threat detected; classification distribution blank.';
+        return;
+      }
+
+      classPlaceholder.style.display = 'none';
+      classCanvas.style.display = 'block';
+
+      const ctx = classCanvas.getContext('2d');
+      const themeRed = getCSSVariable('--red') || '#ff4d6a';
+
+      classChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Flagged Flows',
+            data: values,
+            backgroundColor: themeRed,
+            borderColor: themeRed,
+            borderWidth: 1,
+            barThickness: 16
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: getChartTextColor(),
+                font: { family: 'IBM Plex Mono', size: 10 }
+              },
+              grid: { color: getChartGridColor() }
+            },
+            x: {
+              ticks: {
+                color: getChartTextColor(),
+                font: { family: 'IBM Plex Sans', size: 9 }
+              },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    // Save scan to Shared local storage key
+    function saveToHistory(fileName, data) {
+      let logs = [];
+      try {
+        logs = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch (e) {
+        logs = [];
+      }
+
+      const newRecord = {
+        timestamp: new Date().toLocaleString(),
+        fileName: fileName,
+        isAttack: data.is_attack,
+        attackType: data.is_attack ? data.attack_type : 'Benign',
+        flaggedFlows: data.is_attack ? data.flagged_flows : 0,
+        totalFlows: data.total_flows,
+        confidence: data.is_attack
+          ? `${Math.round(data.stage1_confidence * 100)}% / ${Math.round(data.stage2_confidence * 100)}%`
+          : `${Math.round(data.stage1_confidence * 100)}%`
+      };
+
+      logs.unshift(newRecord);
+      if (logs.length > 10) {
+        logs = logs.slice(0, 10);
+      }
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+    }
+
+    // Modal Control Helpers
+    function openModal() {
+      const modal = document.getElementById('docModal');
+      if (modal) modal.classList.add('visible');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('docModal');
+      if (modal) modal.classList.remove('visible');
+    }
+
+    // Close modal on background click
+    document.addEventListener('click', e => {
+      const modal = document.getElementById('docModal');
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+  </script>
+</body>
+
+</html>
