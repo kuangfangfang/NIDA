@@ -14,7 +14,7 @@ import struct
 import socket
 from collections import defaultdict
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
 
 # ── Model loading ──────────────────────────────────────────────────────────────
@@ -39,21 +39,21 @@ shap_explainer_binary = None
 try:
     binary_model = load_model("binary_model.pkl")
     multiclass_model = load_model("multiclass_model.pkl")
-    print("✓ Models loaded successfully")
+    print("Models loaded successfully")
 except Exception as e:
-    print(f"⚠ Warning: Failed to load models: {e}")
+    print(f"Warning: Failed to load models: {e}")
 
 try:
     scaler = load_model("scaler.pkl")
-    print("✓ Scaler loaded successfully")
+    print("Scaler loaded successfully")
 except Exception as e:
-    print(f"⚠ Warning: Failed to load scaler: {e}")
+    print(f"Warning: Failed to load scaler: {e}")
 
 try:
     shap_explainer_binary = load_model("shap_explainer_binary.pkl")
-    print("✓ SHAP Explainer loaded successfully")
+    print("SHAP Explainer loaded successfully")
 except Exception as e:
-    print(f"⚠ Warning: Failed to load SHAP Explainer: {e}")
+    print(f"Warning: Failed to load SHAP Explainer: {e}")
 
 # Write startup debug info
 try:
@@ -486,8 +486,12 @@ def run_detection(df, explain=False):
             "attack_breakdown":random_breakdown
         }
 
-    # Scale features
-    if scaler is not None:
+    # Scale features only if the data is not already normalized/scaled
+    _all_vals = X.flatten()
+    _all_vals = _all_vals[~np.isnan(_all_vals)]
+    is_normalized = len(_all_vals) > 0 and np.all(_all_vals >= -0.1) and np.all(_all_vals <= 1.1)
+
+    if scaler is not None and not is_normalized:
         try:
             X_scaled = scaler.transform(X)
         except Exception as e:
@@ -591,7 +595,7 @@ def run_detection(df, explain=False):
 # ── Routes ─────────────────────────────────────────────────────────────────────
 @app.route('/')
 def home():
-    return "<h1>NetGuard AI Backend</h1><p>Service is running.</p>"
+    return app.send_static_file('dashboard.html')
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
@@ -742,5 +746,10 @@ def live_capture():
 
 
 if __name__ == "__main__":
+    import webbrowser
+    # Only open browser in parent process, avoiding opening twice due to Werkzeug reloader
+    if not os.environ.get("WERKZEUG_RUN_MAIN"):
+        webbrowser.open("http://localhost:5000")
+    
     print("NetGuard AI backend starting on http://localhost:5000")
     app.run(debug=True, port=5000)

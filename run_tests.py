@@ -559,8 +559,8 @@ def main():
 
     print()
     for name, status, detail, dur in result.results:
-        icon = {"PASS": "✓", "FAIL": "✗", "ERROR": "✗", "SKIP": "⊘"}.get(status, "?")
-        print(f"  {icon} [{status:5s}] {name}  ({dur:.3f}s)")
+        icon = {"PASS": "+", "FAIL": "-", "ERROR": "!", "SKIP": "s"}.get(status, "?")
+        print(f"  [{icon}] [{status:5s}] {name}  ({dur:.3f}s)")
         if detail and status in ("FAIL", "ERROR"):
             for line in detail.strip().split("\n")[-3:]:
                 print(f"           {line}")
@@ -573,7 +573,7 @@ def main():
     report_path = os.path.join(PROJECT_DIR, "test_report.html")
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(_generate_html_report(result, elapsed))
-    print(f"\n  📄 Report saved to: {report_path}")
+    print(f"\n  Report saved to: {report_path}")
 
     # Auto-open
     try:

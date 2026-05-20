@@ -545,7 +545,7 @@ body::before {
 </div>
 
 <script>
-const API = 'http://localhost:5000';
+const API = window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:5000';
 let selectedFile = null;
 
 // ── File handling ──────────────────────────────────────────────────────────────

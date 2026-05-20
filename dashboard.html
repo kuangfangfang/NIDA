@@ -1407,7 +1407,7 @@
   </div>
 
   <script>
-    const API_URL = 'http://localhost:5000';
+    const API_URL = window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:5000';
     let selectedFile = null;
 
     // Charts references
