@@ -747,9 +747,16 @@ def live_capture():
 
 if __name__ == "__main__":
     import webbrowser
-    # Only open browser in parent process, avoiding opening twice due to Werkzeug reloader
-    if not os.environ.get("WERKZEUG_RUN_MAIN"):
-        webbrowser.open("http://localhost:5000")
     
-    print("NetGuard AI backend starting on http://localhost:5000")
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    # On Render, we must listen on 0.0.0.0
+    is_render = os.environ.get("RENDER") is not None
+    host = "0.0.0.0" if is_render else "127.0.0.1"
+    
+    # Only open browser in parent process, avoiding opening twice due to Werkzeug reloader
+    if not os.environ.get("WERKZEUG_RUN_MAIN") and not is_render:
+        webbrowser.open(f"http://localhost:{port}")
+    
+    print(f"NetGuard AI backend starting on http://{host}:{port}")
+    app.run(debug=not is_render, host=host, port=port)
+
