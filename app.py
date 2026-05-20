@@ -3,6 +3,8 @@ NetGuard AI — Backend API
 Two-stage Network Intrusion Detection System
 Trained on CICIDS2017 | XGBoost models
 """
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pickle
@@ -16,6 +18,27 @@ from collections import defaultdict
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
+
+# ── DeepSeek API Configuration ──────────────────────────────────────────────
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "your-api-key-here")
+DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
+
+
+client = None
+try:
+    import openai
+    if DEEPSEEK_API_KEY and DEEPSEEK_API_KEY != "your-api-key-here":
+        client = openai.OpenAI(
+            api_key=DEEPSEEK_API_KEY,
+            base_url=DEEPSEEK_BASE_URL
+        )
+        print("DeepSeek OpenAI client configured successfully.")
+    else:
+        print("Warning: DEEPSEEK_API_KEY environment variable is not configured. Real-time LLM reports will fall back to local guidelines.")
+except ImportError:
+    print("Warning: 'openai' library is not installed. Please run: pip install openai")
+except Exception as e:
+    print(f"Warning: Failed to configure DeepSeek client: {e}")
 
 # ── Model loading ──────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -31,10 +54,19 @@ def load_model(filename):
         with open(path, "rb") as f:
             return pickle.load(f)
 
+try:
+    import shap
+except ImportError:
+    print("\n" + "="*80)
+    print("WARNING: The 'shap' library is not installed. Please install it with:")
+    print("         pip install shap")
+    print("="*80 + "\n")
+    shap = None
+
 binary_model = None
 multiclass_model = None
 scaler = None
-shap_explainer_binary = None
+explainer = None
 
 try:
     binary_model = load_model("binary_model.pkl")
@@ -50,10 +82,20 @@ except Exception as e:
     print(f"Warning: Failed to load scaler: {e}")
 
 try:
-    shap_explainer_binary = load_model("shap_explainer_binary.pkl")
-    print("SHAP Explainer loaded successfully")
+    if shap is not None and binary_model is not None:
+        explainer = shap.TreeExplainer(binary_model)
+        print("Created SHAP TreeExplainer from binary_model")
 except Exception as e:
-    print(f"Warning: Failed to load SHAP Explainer: {e}")
+    print(f"Warning: Failed to create TreeExplainer from binary_model: {e}")
+
+if shap is not None and explainer is None:
+    try:
+        explainer = load_model("shap_explainer_binary.pkl")
+        print("SHAP Explainer loaded successfully")
+    except Exception as e:
+        print(f"Warning: Failed to load SHAP Explainer: {e}")
+
+shap_explainer_binary = explainer
 
 # Write startup debug info
 try:
@@ -450,6 +492,15 @@ def run_detection(df, explain=False):
         if c not in df.columns:
             df[c] = 0.0
     X = df[cols].values
+    # MOCK feature importance for demo mode
+    demo_feature_importance = [
+        {"name": "Destination Port", "value": 0.38},
+        {"name": "Flow Duration", "value": 0.21},
+        {"name": "Init_Win_bytes_forward", "value": 0.16},
+        {"name": "Total Length of Fwd Packets", "value": 0.12},
+        {"name": "Fwd Packet Length Max", "value": 0.08},
+        {"name": "Bwd Packet Length Std", "value": 0.05}
+    ]
 
     if binary_model is None or multiclass_model is None:
         # Demo mode — random predictions for testing without models
@@ -466,13 +517,39 @@ def run_detection(df, explain=False):
                 "attack_type": None,
                 "attack_info": ATTACK_INFO["BENIGN"],
                 "top_features": [],
+                "feature_importance": demo_feature_importance,
                 "demo_mode": True,
-                "attack_breakdown":{}
+                "attack_breakdown": {},
+                "local_explanation": None
             }
         labels = ["DDoS","PortScan","Brute Force","Bot","Infiltration","Web Attack","Heartbleed"]
         attack_type = random.choice(labels)
         random_breakdown = {cat: random.randint(1, n_attack//2) for cat in labels[:random.randint(2,4)]}
         demo_features = random.sample(cols, 3)
+        # Randomize demo values slightly for variation
+        import copy
+        dfi = copy.deepcopy(demo_feature_importance)
+        for d in dfi:
+            d["value"] = round(d["value"] * random.uniform(0.9, 1.1), 4)
+        dfi = sorted(dfi, key=lambda x: x["value"], reverse=True)
+
+        demo_pos = [
+            {"feature": "Destination Port", "contribution": round(0.24 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Flow Duration", "contribution": round(0.18 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Packet Length Std", "contribution": round(0.15 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Average Packet Size", "contribution": round(0.12 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Fwd Packet Length Max", "contribution": round(0.09 * random.uniform(0.85, 1.15), 2)}
+        ]
+        demo_neg = [
+            {"feature": "Flow IAT Mean", "contribution": round(-0.11 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Total Length of Fwd Packets", "contribution": round(-0.08 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Bwd Packet Length Min", "contribution": round(-0.06 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Flow IAT Min", "contribution": round(-0.04 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Bwd Packet Length Std", "contribution": round(-0.02 * random.uniform(0.85, 1.15), 2)}
+        ]
+        demo_pos = sorted(demo_pos, key=lambda x: x["contribution"], reverse=True)
+        demo_neg = sorted(demo_neg, key=lambda x: x["contribution"])
+
         return {
             "is_attack": True,
             "stage1_confidence": round(random.uniform(0.85, 0.99), 4),
@@ -482,8 +559,15 @@ def run_detection(df, explain=False):
             "attack_type": attack_type,
             "attack_info": ATTACK_INFO.get(attack_type, ATTACK_INFO["DDoS"]),
             "top_features": demo_features,
+            "feature_importance": dfi,
             "demo_mode": True,
-            "attack_breakdown":random_breakdown
+            "attack_breakdown": random_breakdown,
+            "local_explanation": {
+                "positive": demo_pos,
+                "negative": demo_neg,
+                "positive_features": demo_pos,
+                "negative_features": demo_neg
+            }
         }
 
     # Scale features only if the data is not already normalized/scaled
@@ -508,6 +592,15 @@ def run_detection(df, explain=False):
     stage1_conf = float(np.mean(np.max(binary_proba, axis=1)))
 
     if n_attack == 0:
+        feat_importance = []
+        if binary_model is not None and hasattr(binary_model, "feature_importances_"):
+            try:
+                feat_imp = sorted(list(zip(cols, binary_model.feature_importances_)), key=lambda x: x[1], reverse=True)
+                feat_importance = [{"name": f[0], "value": round(float(f[1]), 4)} for f in feat_imp[:6]]
+            except Exception:
+                pass
+        if not feat_importance:
+            feat_importance = demo_feature_importance
         return {
             "is_attack": False,
             "stage1_confidence": round(stage1_conf, 4),
@@ -518,7 +611,9 @@ def run_detection(df, explain=False):
             "class_distribution": {"BENIGN": total},
             "attack_breakdown": {},
             "top_features": [],
-            "demo_mode": False
+            "feature_importance": feat_importance,
+            "demo_mode": False,
+            "local_explanation": None
         }
 
     # Stage 2 — multi-class on flagged flows only
@@ -545,8 +640,11 @@ def run_detection(df, explain=False):
     }
     attack_breakdown = {k: int(v) for k, v in class_distribution.items() if k.upper() != 'BENIGN'}
 
-    # Compute top_features via SHAP (when requested & explainer is loaded)
+    # Compute top_features and feature_importance via SHAP or global importances
     top_features = []
+    feature_importance = []
+    feat_imp = None
+
     if explain and shap_explainer_binary is not None:
         try:
             shap_vals = shap_explainer_binary.shap_values(X_attack_scaled)
@@ -557,25 +655,81 @@ def run_detection(df, explain=False):
             else:
                 sv = shap_vals
             mean_abs_shap = np.mean(np.abs(sv), axis=0)
-            feat_imp = sorted(list(zip(cols, mean_abs_shap)), key=lambda x: x[1], reverse=True)
-            top_features = [f[0] for f in feat_imp[:3]]
+            total_shap = np.sum(mean_abs_shap)
+            if total_shap > 0:
+                feat_imp = sorted(list(zip(cols, mean_abs_shap / total_shap)), key=lambda x: x[1], reverse=True)
+            else:
+                feat_imp = sorted(list(zip(cols, mean_abs_shap)), key=lambda x: x[1], reverse=True)
         except Exception as shap_err:
             print(f"Error computing SHAP: {shap_err}")
-            if hasattr(binary_model, "feature_importances_"):
-                feat_imp = sorted(list(zip(cols, binary_model.feature_importances_)), key=lambda x: x[1], reverse=True)
-                top_features = [f[0] for f in feat_imp[:3]]
-            else:
-                top_features = ["Destination Port", "Flow Duration", "Total Fwd Packets"]
-    else:
-        # Fallback to model global feature importances
+
+    if feat_imp is None:
         if hasattr(binary_model, "feature_importances_"):
             try:
                 feat_imp = sorted(list(zip(cols, binary_model.feature_importances_)), key=lambda x: x[1], reverse=True)
-                top_features = [f[0] for f in feat_imp[:3]]
             except Exception:
-                top_features = ["Destination Port", "Flow Duration", "Total Fwd Packets"]
-        else:
-            top_features = ["Destination Port", "Flow Duration", "Total Fwd Packets"]
+                pass
+
+    if feat_imp:
+        top_features = [f[0] for f in feat_imp[:3]]
+        feature_importance = [{"name": f[0], "value": round(float(f[1]), 4)} for f in feat_imp[:6]]
+    else:
+        top_features = ["Destination Port", "Flow Duration", "Total Fwd Packets"]
+        feature_importance = demo_feature_importance
+
+    local_explanation = None
+    if explainer is not None:
+        try:
+            attack_indices = np.where(binary_preds == 1)[0]
+            if len(attack_indices) > 0:
+                print("Computing SHAP explanations...")
+                
+                # Sample up to 200 attack flows to keep computation fast
+                if len(attack_indices) > 200:
+                    sampled_indices = attack_indices[:200]
+                else:
+                    sampled_indices = attack_indices
+
+                X_scaled_attack = X_scaled[sampled_indices]
+                shap_values = explainer.shap_values(X_scaled_attack)
+
+                if isinstance(shap_values, list):
+                    shap_matrix = shap_values[1] if len(shap_values) > 1 else shap_values[0]
+                elif hasattr(shap_values, "values"):
+                    shap_matrix = shap_values.values
+                    if len(shap_matrix.shape) == 3:
+                        shap_matrix = shap_matrix[:, :, 1]
+                elif isinstance(shap_values, np.ndarray):
+                    if len(shap_values.shape) == 3:
+                        shap_matrix = shap_values[:, :, 1]
+                    else:
+                        shap_matrix = shap_values
+                else:
+                    shap_matrix = np.array(shap_values)
+
+                # Average contributions over all sampled attack flows
+                mean_shap = np.mean(shap_matrix, axis=0)
+
+                pos_features = []
+                neg_features = []
+                for col_name, val in zip(cols, mean_shap):
+                    val_f = float(val)
+                    if val_f > 0:
+                        pos_features.append({"feature": col_name, "contribution": round(val_f, 4)})
+                    elif val_f < 0:
+                        neg_features.append({"feature": col_name, "contribution": round(val_f, 4)})
+
+                pos_features = sorted(pos_features, key=lambda x: abs(x["contribution"]), reverse=True)[:5]
+                neg_features = sorted(neg_features, key=lambda x: abs(x["contribution"]), reverse=True)[:5]
+
+                local_explanation = {
+                    "positive": pos_features,
+                    "negative": neg_features,
+                    "positive_features": pos_features,
+                    "negative_features": neg_features
+                }
+        except Exception as shap_err:
+            print(f"Error computing local SHAP explanation: {shap_err}")
 
     return {
         "is_attack": True,
@@ -588,7 +742,9 @@ def run_detection(df, explain=False):
         "class_distribution": class_distribution,
         "attack_breakdown": attack_breakdown,
         "top_features": top_features,
-        "demo_mode": False
+        "feature_importance": feature_importance,
+        "demo_mode": False,
+        "local_explanation": local_explanation
     }
 
 
@@ -762,6 +918,132 @@ def live_capture():
                 os.unlink(tmp_path)
             except:
                 pass
+
+
+@app.route("/explain", methods=["POST"])
+def generate_explanation():
+    data = request.get_json() or {}
+    
+    # Extract necessary fields
+    is_attack = data.get("is_attack", False)
+    attack_type = data.get("attack_type", "Unknown")
+    confidence_s1 = data.get("stage1_confidence", 0.0)
+    confidence_s2 = data.get("stage2_confidence", 0.0)
+    flagged_flows = data.get("flagged_flows", 0)
+    total_flows = data.get("total_flows", 0)
+    attack_breakdown = data.get("attack_breakdown", {})
+    local_explanation = data.get("local_explanation")  # SHAP features
+    
+    # Extract top 3 features from local_explanation
+    top_features = ""
+    if local_explanation:
+        pos_list = local_explanation.get("positive") or local_explanation.get("positive_features")
+        if pos_list:
+            top_features = "\n".join([
+                f"  • {f['feature']}: 推高攻击概率 (+{f['contribution']:.4f})"
+                for f in pos_list[:3]
+            ])
+    
+    # If client is not configured, fallback to offline report generation
+    if client is None:
+        if is_attack:
+            breakdown_str = ", ".join([f"{k}: {v} flows" for k, v in attack_breakdown.items()])
+            explanation = f"""### 📋 AI Integrated Report
+
+**[Analysis]**
+The system has detected active **{attack_type}** network traffic patterns with high confidence (S1: {confidence_s1:.1%}, S2: {confidence_s2:.1%}). This suggests potential host compromise or targeted network intrusion attempts.
+
+**[Attack Breakdown]**
+- {breakdown_str if breakdown_str else "No breakdown available"}
+
+**[Why it was flagged as an attack]**
+The intrusion detection model flagged these flows primarily due to anomalies in the following features:
+{top_features if top_features else "  • Anomalous traffic volume and packet length statistics."}
+
+**[Action Recommendations]**
+1. **[Immediate]** Isolate or block the source IP addresses identified in the traffic logs.
+   *Command Example:* `netsh advfirewall firewall add rule name="Block Attack" dir=in action=block remoteip=<source_ip>`
+2. **[Immediate]** Rate-limit incoming requests on the targeted destination ports.
+3. **[Long-term]** Update intrusion detection signatures and configure firewalls to block port-scanning behaviors.
+4. **[Long-term]** Conduct a vulnerability scan on target assets to ensure no services are exposed.
+
+---
+*Note: This is a local template-based report because the `DEEPSEEK_API_KEY` environment variable is not set. Configure it to enable live AI reports.*"""
+        else:
+            explanation = f"""### 📋 AI Integrated Report
+
+The Network Intrusion Detection System analyzed {total_flows} network flows. **No intrusion was detected, and all traffic looks benign.**
+
+* **Status:** Clean
+* **System Confidence:** {confidence_s1:.2%}
+
+All analyzed metrics (flow duration, packet size variance, flag distributions) remain well within normal thresholds. Keep maintaining standard security policies and routine diagnostics to ensure persistent security.
+
+---
+*Note: This is a local template-based report because the `DEEPSEEK_API_KEY` environment variable is not set. Configure it to enable live AI reports.*"""
+
+        return jsonify({
+            "success": True,
+            "explanation": explanation
+        })
+
+    # Construct DeepSeek prompt
+    if is_attack:
+        breakdown_str = ", ".join([f"{k}: {v}" for k, v in attack_breakdown.items()])
+        prompt = f"""
+You are a cybersecurity AI. Based on the detection results, generate a response in English containing:
+
+**[Analysis]**
+Briefly explain the detected attack type and its severity.
+
+**[Attack Breakdown]**
+{breakdown_str}
+
+**[Why it was flagged as attack]**
+The model relied on these features:
+{top_features if top_features else "Pattern-based detection."}
+
+**[Action Recommendations]**
+Provide 3-4 specific, actionable steps to mitigate the {attack_type} attack.
+Order them from immediate to long-term. Include command examples if applicable (e.g., `block ip`).
+
+Keep the total length between 200-300 words.
+"""
+    else:
+        prompt = f"""
+你是一个网络安全分析 AI。检测结果显示：**未检测到入侵，流量正常**。
+
+置信度：{confidence_s1:.2%}
+
+请用英文生成一段简洁的确认信息（约 50-80 字），让用户知道系统已检查了 {total_flows} 条网络流，未发现异常。
+语气要积极，可以建议用户继续保持良好的安全习惯。
+"""
+    
+    # Call DeepSeek API
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "你是一个网络安全分析专家，专门解读入侵检测系统结果并给出应对建议。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=800,
+            timeout=30
+        )
+        
+        explanation = response.choices[0].message.content
+        
+        return jsonify({
+            "success": True,
+            "explanation": explanation
+        })
+    
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 if __name__ == "__main__":

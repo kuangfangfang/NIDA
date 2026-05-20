@@ -1,0 +1,25 @@
+# Python environment and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# NetGuard AI Local Configuration and Sensitive Info
+.env
+debug_detect.txt
+temp_capture.pcap
+test_report.html
+jira_vs_actual_report.html
+
+# Large Serialized Model Files (Optional: keep if you want to push them, or ignore if using Git LFS)
+# models/*.pkl
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
