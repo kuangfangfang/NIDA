@@ -705,32 +705,51 @@ def live_capture():
         # Check permissions / start sniffing
         try:
             packets = sniff(timeout=duration)
+            if not packets or len(packets) == 0:
+                return jsonify({
+                    "error": "No network packets were captured. Ensure there is active traffic on the monitored interface."
+                }), 400
+
+            with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as tmp:
+                tmp_path = tmp.name
+
+            wrpcap(tmp_path, packets)
+
+            with open(tmp_path, "rb") as f:
+                pcap_bytes = f.read()
+
+            df = extract_features_from_pcap(pcap_bytes)
+            simulated = False
         except Exception as e:
-            return jsonify({
-                "error": (
-                    f"Failed to start packet sniffing: {str(e)}. "
-                    "Make sure you are running as Administrator (Windows) or root (Linux/macOS), "
-                    "and that Npcap/WinPcap/libpcap is installed on the host system."
-                )
-            }), 403
+            # Fallback to simulation if raw capture is not permitted or fails (e.g. on Render)
+            import random
+            print(f"Packet sniffing failed ({e}). Falling back to simulated live traffic.")
+            
+            sample_files = ["sample_attack.csv", "sample_benign.csv", "netguard_sample_flows.csv"]
+            loaded = False
+            for sf in sample_files:
+                sf_path = os.path.join(BASE_DIR, sf)
+                if os.path.exists(sf_path):
+                    try:
+                        df = pd.read_csv(sf_path)
+                        # Slice a dynamic random sample of flows
+                        sample_size = min(len(df), random.randint(15, 45))
+                        df = df.sample(n=sample_size).reset_index(drop=True)
+                        loaded = True
+                        break
+                    except Exception as csv_err:
+                        print(f"Failed to read sample csv {sf}: {csv_err}")
+            
+            if not loaded:
+                total_rows = random.randint(10, 30)
+                data_dict = {col: [random.uniform(0, 100) for _ in range(total_rows)] for col in FEATURE_COLUMNS}
+                df = pd.DataFrame(data_dict)
+            simulated = True
 
-        if not packets or len(packets) == 0:
-            return jsonify({
-                "error": "No network packets were captured. Ensure there is active traffic on the monitored interface."
-            }), 400
-
-        with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as tmp:
-            tmp_path = tmp.name
-
-        wrpcap(tmp_path, packets)
-
-        with open(tmp_path, "rb") as f:
-            pcap_bytes = f.read()
-
-        df = extract_features_from_pcap(pcap_bytes)
         explain = request.args.get("explain", "false").lower() == "true"
         result = run_detection(df, explain=explain)
         result["success"] = True
+        result["simulated"] = simulated
         return jsonify(result)
 
     except ValueError as ve:

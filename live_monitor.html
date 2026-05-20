@@ -1061,6 +1061,9 @@
           <div id="demoNotice" class="alert-box warning">
             ⚠️ <strong>Demo Mode active:</strong> Backend is running without models loaded. Showing simulated ML responses.
           </div>
+          <div id="simulatedNotice" class="alert-box warning" style="display: none; background: var(--amber-bg); border: 1px solid var(--amber); color: var(--text); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+            ⚠️ <strong>Simulated Live Traffic Mode:</strong> Real-time raw packet sniffing is not permitted or supported in cloud hosting environments (Render). To analyze live traffic from your actual network interfaces, run the client-side script locally: <code style="background: var(--bg3); padding: 2px 6px; border-radius: 4px; font-family: var(--mono); font-size: 12px; color: var(--amber);">sudo python live_capture.py --backend <span id="renderUrlPlaceholder">your-render-url</span></code>.
+          </div>
 
           <!-- Report Card -->
           <div id="reportCard" class="report-card">
@@ -1266,6 +1269,8 @@
       const startBtn = document.getElementById('startBtn');
       const inlineError = document.getElementById('inlineError');
       const demoNotice = document.getElementById('demoNotice');
+      const simulatedNotice = document.getElementById('simulatedNotice');
+      const renderUrlPlaceholder = document.getElementById('renderUrlPlaceholder');
       const reportCard = document.getElementById('reportCard');
       const reportPlaceholder = document.getElementById('reportPlaceholder');
       const terminalDot = document.getElementById('terminalDot');
@@ -1282,6 +1287,7 @@
       terminalDot.classList.add('active');
       inlineError.classList.remove('visible');
       demoNotice.classList.remove('visible');
+      if (simulatedNotice) simulatedNotice.style.display = 'none';
       reportCard.classList.remove('visible');
       reportPlaceholder.style.display = 'flex';
       reportPlaceholder.textContent = 'Capture in progress. Observing traffic packets...';
@@ -1332,6 +1338,17 @@
           addLog(`Flagged flows count: ${data.flagged_flows} / ${data.total_flows}`, "danger");
         } else {
           addLog("✓ No intrusive flows detected. Clean network snapshot.", "success");
+        }
+
+        if (data.simulated) {
+          if (simulatedNotice) {
+            simulatedNotice.style.display = 'block';
+            if (renderUrlPlaceholder) {
+              renderUrlPlaceholder.textContent = window.location.origin;
+            }
+          }
+          addLog("ℹ Cloud deployment detected: Running in Simulated Live Traffic mode.", "warning");
+          addLog(`👉 To analyze your actual local traffic, run: sudo python live_capture.py --backend ${window.location.origin}`, "info");
         }
 
         if (data.demo_mode) {
