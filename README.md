@@ -1,115 +1,121 @@
-# NetGuard AI — Setup Guide
+# NetGuard AI — Network Intrusion Detection System (NIDS)
 
-Two-stage network intrusion detection system using XGBoost, trained on CICIDS2017.
+NetGuard AI is a state-of-the-art, machine-learning-driven Network Intrusion Detection System (NIDS). It integrates a two-stage XGBoost classifier trained on the standardized **CICIDS2017** benchmark, explains predictions locally using **SHAP values**, and generates human-readable incident response playbooks powered by the **DeepSeek LLM engine**.
 
----
-
-## Project Structure
-
-```
-nids_backend/
-├── app.py               ← Flask backend
-├── index.html           ← Frontend (open directly in browser)
-├── requirements.txt     ← Python dependencies
-└── models/
-    ├── binary_model.pkl     ← Your Stage 1 (benign vs attack) model
-    └── multiclass_model.pkl ← Your Stage 2 (attack type) model
-```
+The system features a decoupled client-server architecture with a premium glassmorphic UI dashboard that supports direct file uploads, real-time packet sniffing, and dark/light modes with accessibility-scaled typography.
 
 ---
 
-## Step 1 — Install dependencies
+## 🚀 Key Features
 
+* **Two-Stage ML Pipeline**:
+  * **Stage 1 (Binary)**: Fast classification filtering normal traffic from malicious anomalies.
+  * **Stage 2 (Multiclass)**: Multi-label classification identifying 7 distinct attack categories (`DDoS`, `PortScan`, `Brute Force`, `Bot`, `Infiltration`, `Web Attack`, `Heartbleed`).
+* **Interactive Local Explainability (XAI)**: Calculates real-time SHAP (Shapley Additive exPlanations) values to isolate the network feature metrics (e.g., flag counts, segment sizes) driving the model's verdict.
+* **DeepSeek LLM Incident Reports**: Connects to the DeepSeek Chat API to produce structured mitigation advice cards (Executive Analysis, Detailed Breakdown, Why Flagged, Action suggestions).
+* **Live Sniffing Agent**: Python-based local sniffer (`live_capture.py`) intercepts active Network Interface Card (NIC) traffic, generates clean bidirectional flows via Scapy, and uploads them dynamically to the cloud API.
+* **Responsive Glassmorphic UI**: High-fidelity dashboard (`dashboard.html` and `live_monitor.html`) featuring custom HSL styling, responsive CSS grids, and interactive Chart.js charts.
+* **Full Testing Harness**: Running `run_tests.py` launches 25 tests checking data pipelines, API integrations, and validation boundaries.
+
+---
+
+## 📁 Repository Structure
+
+```
+.
+├── app.py                     # Flask API backend & inference pipeline
+├── index.html                 # Brand landing page
+├── dashboard.html             # Historical log, CSV upload & AI reporting dashboard
+├── live_monitor.html          # Live network sniffing monitor controls
+├── live_capture.py            # Local interface sniffing CLI agent (Scapy)
+├── requirements.txt           # Python application dependencies
+├── run_tests.py               # Automated testing framework runner
+├── TEST_PLAN.md               # Detailed test case specifications
+├── train.py                   # XGBoost models and scaler training script
+├── models/
+│   ├── scaler.pkl             # Serialized StandardScaler
+│   ├── binary_model.pkl       # Stage 1 XGBoost model
+│   └── multiclass_model.pkl   # Stage 2 XGBoost model
+└── .gitignore                 # Safe staging list (ignores .env/caches)
+```
+
+---
+
+## 🛠️ Local Installation & Setup
+
+### Prerequisites
+* Python 3.9+ installed on your system.
+
+### 1. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-> Requires Python 3.9+
+### 2. Configure Environment Variables
+Create a file named `.env` in the root directory:
+```env
+DEEPSEEK_API_KEY=your_actual_deepseek_api_key
+```
 
----
-
-## Step 2 — Add your models
-
-Create a `models/` folder and drop in your pkl files:
-
+### 3. Run Training (Optional)
+If model files are not found in `models/`, the server runs in **Demo Mode** with fallback simulations. To train the models on your training dataset, put your dataset CSV as `cicids2017_train.csv` and run:
 ```bash
-mkdir models
-cp /path/to/your/binary_model.pkl    models/binary_model.pkl
-cp /path/to/your/multiclass_model.pkl models/multiclass_model.pkl
+python train.py
 ```
 
-**If your pkl files have different names**, just edit lines 22–23 in `app.py`:
-```python
-binary_model     = load_model("your_binary_filename.pkl")
-multiclass_model = load_model("your_multiclass_filename.pkl")
-```
-
-**If your Stage 2 model uses numeric labels** (0, 1, 2…) instead of string labels,
-check the `label_map` dict in `run_detection()` around line 175 and make sure
-the numbers match your training labels.
-
-**Without models**, the backend runs in **demo mode** — it returns random predictions
-so you can test the UI. A yellow warning banner appears in the frontend.
-
----
-
-## Step 3 — Start the backend
-
+### 4. Start the Flask Backend
 ```bash
 python app.py
 ```
+The backend service will boot on `http://localhost:5000`.
 
-You should see:
-```
-✓ Models loaded successfully
-NetGuard AI backend starting on http://localhost:5000
-```
+### 5. Access the Frontend
+Open the frontend application directly in any browser (no frontend server required):
+* Landing Page: `index.html`
+* Analytics Dashboard: `dashboard.html`
+* Live Monitor: `live_monitor.html`
 
 ---
 
-## Step 4 — Open the frontend
+## 📡 Live Packet Sniffing & Ingestion
 
-Just open `index.html` in your browser — no server needed for the frontend.
+Since cloud web services block raw socket capture for security, NetGuard AI utilizes a hybrid client-server model:
 
+1. Start your local Flask API or locate your Render deployment URL.
+2. In a terminal with admin privileges (required to access physical network cards), run the sniffing agent:
+   ```bash
+   # Windows (Administrator command prompt)
+   python live_capture.py
+   
+   # Linux / macOS
+   sudo python live_capture.py
+   ```
+3. Set your target API URL and sniffing duration (e.g. 15s). The agent captures raw packets, groups them into bidrectional flows, parses them to a temporary `.pcap`, and transmits it to the Flask server for dual-stage classification.
+
+---
+
+## 🧪 Testing & Verification
+
+We supply an automated verification tool validating endpoint performance, preprocessing scripts, and bad-input limits.
+
+Run the test suite:
 ```bash
-# macOS
-open index.html
-
-# Windows
-start index.html
-
-# Linux
-xdg-open index.html
+python run_tests.py
 ```
+A visual `test_report.html` report will be generated and automatically opened in your default web browser detailing pass/fail summaries.
 
 ---
 
-## Uploading files
+## ☁️ Deployment Specifications
 
-**CSV** — Should be a CICIDS2017-format CSV (output from CICFlowMeter).
-The system will automatically strip any Label column and align feature columns.
-
-**PCAP / PCAPNG** — Raw packet captures are supported. The backend uses scapy
-to extract flow-level features compatible with the CICIDS2017 feature set.
-Feature extraction is approximate — for best accuracy on PCAP files,
-pre-process with CICFlowMeter and upload the resulting CSV instead.
-
----
-
-## CORS / browser issues
-
-If you get a CORS error in the browser console, make sure the Flask backend is running.
-The frontend calls `http://localhost:5000` — flask-cors is already enabled on the backend.
-
-For production deployment, update the `API` variable at the bottom of `index.html`:
-```javascript
-const API = 'https://your-deployed-backend.com';
-```
-
----
-
-## Feature columns
-
-The backend expects (or extracts) the standard 78 CICIDS2017 features.
-If your model was trained on a subset, edit `FEATURE_COLUMNS` in `app.py`
-to match exactly the columns used during training.
+### Render Hosting Setup
+1. **GitHub Sync**: Push this repository (without the `.env` file) to a GitHub repository.
+2. **Web Service Creation**: In Render, create a new **Web Service** connected to your repository.
+3. **Environment Settings**:
+   * **Runtime**: Python
+   * **Build Command**: `pip install -r requirements.txt`
+   * **Start Command**: `gunicorn app:app`
+4. **Environment Variables**:
+   Add `DEEPSEEK_API_KEY` under the **Environment** tab inside the Render service panel.
+5. **CORS Alignment**:
+   Update the backend endpoint API constant in the javascript scripts at the bottom of `dashboard.html` and `live_monitor.html` to point to your Render domain URL (e.g., `https://your-service.onrender.com`).
