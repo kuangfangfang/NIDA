@@ -38,6 +38,7 @@
       --btn-text: #ffffff;
       --shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
       --chart-legend-color: #000000;
+      --header-bg: rgba(255, 255, 255, 0.75);
       --mono: 'IBM Plex Mono', monospace;
       --sans: 'IBM Plex Sans', sans-serif;
     }
@@ -67,6 +68,7 @@
       --btn-text: #000000;
       --shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
       --chart-legend-color: #ffffff;
+      --header-bg: rgba(15, 19, 26, 0.75);
     }
 
     *,
@@ -145,12 +147,17 @@
 
     /* Header */
     .header {
-      background: var(--bg2);
+      background: var(--header-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
     }
 
     .logo {
@@ -397,7 +404,9 @@
     .upload-zone:hover,
     .upload-zone.drag-over {
       border-color: var(--green);
-      background: var(--bg);
+      background: var(--green-bg);
+      box-shadow: 0 0 20px rgba(0, 240, 168, 0.15);
+      transform: translateY(-2px) scale(1.005);
     }
 
     .upload-zone input[type=file] {
@@ -1408,6 +1417,12 @@
 
   <script>
     const API_URL = window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:5000';
+    
+    // Set global Chart.js defaults
+    if (window.Chart) {
+      Chart.defaults.font.family = "'IBM Plex Sans', -apple-system, sans-serif";
+    }
+
     let selectedFile = null;
 
     // Charts references

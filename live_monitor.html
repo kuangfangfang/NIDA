@@ -38,6 +38,7 @@
       --btn-text: #ffffff;
       --shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
       --chart-legend-color: #000000;
+      --header-bg: rgba(255, 255, 255, 0.75);
       --mono: 'IBM Plex Mono', monospace;
       --sans: 'IBM Plex Sans', sans-serif;
     }
@@ -66,6 +67,7 @@
       --btn-text: #000000;
       --shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
       --chart-legend-color: #ffffff;
+      --header-bg: rgba(15, 19, 26, 0.75);
     }
 
     *,
@@ -144,12 +146,17 @@
 
     /* Header */
     .header {
-      background: var(--bg2);
+      background: var(--header-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
     }
 
     .logo {
@@ -454,6 +461,18 @@
       display: flex;
       align-items: flex-start;
       gap: 6px;
+      animation: logFadeIn 0.25s ease-out forwards;
+    }
+
+    @keyframes logFadeIn {
+      from {
+        opacity: 0;
+        transform: translateX(-6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
     }
 
     .log-time {
@@ -1147,6 +1166,12 @@
 
   <script>
     const API_URL = window.location.origin.startsWith('http') ? window.location.origin : 'http://localhost:5000';
+    
+    // Set global Chart.js defaults
+    if (window.Chart) {
+      Chart.defaults.font.family = "'IBM Plex Sans', -apple-system, sans-serif";
+    }
+
     let ratioChart = null;
     let classChart = null;
     let lastScanData = null;
