@@ -879,19 +879,20 @@ def live_capture():
         except Exception as e:
             # Fallback to simulation if raw capture is not permitted or fails (e.g. on Render)
             import random
-            print(f"Packet sniffing failed ({e}). Falling back to simulated live traffic.")
-            
             sample_files = ["sample_attack.csv", "sample_benign.csv", "netguard_sample_flows.csv"]
+            existing_files = [sf for sf in sample_files if os.path.exists(os.path.join(BASE_DIR, sf))]
             loaded = False
-            for sf in sample_files:
-                sf_path = os.path.join(BASE_DIR, sf)
-                if os.path.exists(sf_path):
+            
+            if existing_files:
+                random.shuffle(existing_files)
+                for sf in existing_files:
                     try:
-                        df = pd.read_csv(sf_path)
+                        df = pd.read_csv(os.path.join(BASE_DIR, sf))
                         # Slice a dynamic random sample of flows
                         sample_size = min(len(df), random.randint(15, 45))
                         df = df.sample(n=sample_size).reset_index(drop=True)
                         loaded = True
+                        print(f"Simulation successfully loaded sample from: {sf}")
                         break
                     except Exception as csv_err:
                         print(f"Failed to read sample csv {sf}: {csv_err}")

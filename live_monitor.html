@@ -2063,7 +2063,7 @@
       if (data.is_attack) {
         card.className = 'report-card visible attack';
         header.className = 'report-header attack';
-        verdict.textContent = `⚠️ INTRUSION DETECTED`;
+        verdict.textContent = `⚠️ INTRUSION DETECTED${data.simulated ? ' (SIMULATED)' : ''}`;
 
         const s1 = data.stage1_confidence ? Math.round(data.stage1_confidence * 100) : 0;
         const s2 = data.stage2_confidence ? Math.round(data.stage2_confidence * 100) : 0;
@@ -2099,7 +2099,7 @@
       } else {
         card.className = 'report-card visible benign';
         header.className = 'report-header benign';
-        verdict.textContent = `✅ NETWORK CLEAN`;
+        verdict.textContent = `✅ NETWORK CLEAN${data.simulated ? ' (SIMULATED)' : ''}`;
 
         const s1 = data.stage1_confidence ? Math.round(data.stage1_confidence * 100) : 0;
         confText.textContent = `Confidence: ${s1}%`;
