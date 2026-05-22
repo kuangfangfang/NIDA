@@ -557,6 +557,7 @@ def preprocess_csv(csv_bytes):
         if col not in df.columns:
             df[col] = 0
     df = df[FEATURE_COLUMNS]
+    df = df.apply(pd.to_numeric, errors="coerce").fillna(0)#防止字符串混入，强制转换为数值
     return df
 
 
@@ -607,7 +608,7 @@ def run_detection(df, explain=False):
                 "attack_breakdown": {},
                 "local_explanation": None
             }
-        labels = ["DoS_DDoS","PortScan","Brute Force","Bot","Infiltration"]
+        labels = ["DoS_DDoS","PortScan","BruteForce","Botnet","Infiltration"]
         attack_type = random.choice(labels)
         random_breakdown = {cat: random.randint(1, n_attack//2) for cat in labels[:random.randint(2,4)]}
         demo_features = random.sample(cols, 3)
@@ -662,12 +663,25 @@ def run_detection(df, explain=False):
 
     if scaler is not None and not is_normalized:
         try:
-            X_scaled = scaler.transform(X)
+            # 确保使用与训练时相同的特征顺序
+            if hasattr(scaler, 'feature_names_in_'):
+                # 重新构建 DataFrame 以保证列顺序
+                X_df = pd.DataFrame(X, columns=cols)
+                # 只保留 scaler 期望的特征，缺失的补 0
+                scaler_cols = list(scaler.feature_names_in_)
+                for c in scaler_cols:
+                    if c not in X_df.columns:
+                        X_df[c] = 0.0
+                X_scaled = scaler.transform(X_df[scaler_cols])
+            else:
+                X_scaled = scaler.transform(X)
         except Exception as e:
             print(f"Error during feature scaling: {e}")
             X_scaled = X
     else:
         X_scaled = X
+    print(f"X_scaled min:", X_scaled.min(axis=0)[:5])#debug
+    print(f"X_scaled max:", X_scaled.max(axis=0)[:5])#debug
 
     # Stage 1 — binary classification
     binary_preds = binary_model.predict(X_scaled)
@@ -700,12 +714,17 @@ def run_detection(df, explain=False):
             "demo_mode": False,
             "local_explanation": None
         }
+    print(f"Binary predictions: {binary_preds}")
+    print(f"Binary probabilities: {binary_proba[:,1]}")
+    print(f"stage 1: Number of attacks predicted: {n_attack}")
+    print(f"DEBUG: Stage 1 predicted attacks = {n_attack} out of {total} flows (confidence: {stage1_conf:.4f})")
 
     # Stage 2 — multi-class on flagged flows only
     X_attack_scaled = X_scaled[binary_preds == 1]
     mc_preds = multiclass_model.predict(X_attack_scaled)
     mc_proba = multiclass_model.predict_proba(X_attack_scaled)
     stage2_conf = float(np.mean(np.max(mc_proba, axis=1)))
+    print(f"Multiclass model classes: {multiclass_model.classes_}")#debug
 
     # Most frequent predicted class
     unique, counts = np.unique(mc_preds, return_counts=True)
@@ -715,7 +734,11 @@ def run_detection(df, explain=False):
     if stage2_label_encoder is not None:
         try:
             # top_class is an integer; inverse_transform returns a list of class names
-            attack_type = stage2_label_encoder.inverse_transform([int(top_class)])[0]
+            val = stage2_label_encoder.inverse_transform([int(top_class)])[0]
+            if pd.isna(val) or not isinstance(val, str):
+                attack_type = "Unknown_Attack"
+            else:
+                attack_type = str(val)
         except Exception as e:
             print(f"Error mapping class {top_class}: {e}")
             attack_type = "Unknown_Attack"
@@ -735,7 +758,11 @@ def run_detection(df, explain=False):
     for k, v in zip(unique, counts):
         if stage2_label_encoder is not None:
             try:
-                class_name = stage2_label_encoder.inverse_transform([int(k)])[0]
+                val = stage2_label_encoder.inverse_transform([int(k)])[0]
+                if pd.isna(val) or not isinstance(val, str):
+                    class_name = "Unknown_Attack"
+                else:
+                    class_name = str(val)
             except:
                 class_name = f"Class_{k}"
         else:
@@ -745,7 +772,8 @@ def run_detection(df, explain=False):
         class_distribution[class_name] = int(v)
 
     # attack_breakdown excludes any BENIGN (but there is no BENIGN in Stage 2 outputs)
-    attack_breakdown = {k: int(v) for k, v in class_distribution.items()}     
+    #attack_breakdown = {k: int(v) for k, v in class_distribution.items()}     
+    attack_breakdown = class_distribution.copy()#stage2 没有beign，所以直接复制整个分布作为攻击细分
 
 
     # Map numeric label to string if needed
@@ -767,7 +795,7 @@ def run_detection(df, explain=False):
     feature_importance = []
     feat_imp = None
 
-    if explain and shap_explainer_binary is not None:
+    if shap_explainer_binary is not None:
         try:
             shap_vals = shap_explainer_binary.shap_values(X_attack_scaled)
             if isinstance(shap_vals, list):
@@ -800,7 +828,7 @@ def run_detection(df, explain=False):
         feature_importance = demo_feature_importance
 
     local_explanation = None
-    if explainer is not None:
+    if explainer and shap_explainer_binary is not None:
         try:
             attack_indices = np.where(binary_preds == 1)[0]
             if len(attack_indices) > 0:
@@ -813,8 +841,9 @@ def run_detection(df, explain=False):
                     sampled_indices = attack_indices
 
                 X_scaled_attack = X_scaled[sampled_indices]
-                shap_values = explainer.shap_values(X_scaled_attack)
-
+                X_attack_df = pd.DataFrame(X_scaled_attack, columns=cols)# 关键修复：转换为 DataFrame 并带上列名
+                shap_values = explainer.shap_values(X_attack_df)
+                #提取shap矩阵（二分类取正类）
                 if isinstance(shap_values, list):
                     shap_matrix = shap_values[1] if len(shap_values) > 1 else shap_values[0]
                 elif hasattr(shap_values, "values"):
