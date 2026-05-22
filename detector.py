@@ -1,0 +1,768 @@
+"""
+NetGuard AI — Detection Engine Module
+Handles model loading, feature extraction, preprocessing, and two-stage detection.
+Imported by app.py to keep routing logic separate from ML logic.
+"""
+import pickle
+import numpy as np
+import pandas as pd
+import os
+import io
+import struct
+import socket
+from collections import defaultdict
+
+# ── Base directory (same folder as this file) ──────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ── Model loading ──────────────────────────────────────────────────────────────
+def load_model(filename):
+    path = os.path.join(BASE_DIR, "models", filename)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Model not found: {path}")
+    try:
+        import joblib
+        return joblib.load(path)
+    except Exception:
+        with open(path, "rb") as f:
+            return pickle.load(f)
+
+# ── SHAP library ───────────────────────────────────────────────────────────────
+try:
+    import shap
+except ImportError:
+    print("\n" + "="*80)
+    print("WARNING: The 'shap' library is not installed. Please install it with:")
+    print("         pip install shap")
+    print("="*80 + "\n")
+    shap = None
+
+# ── Load models, scaler, and label encoder ─────────────────────────────────────
+binary_model = None
+multiclass_model = None
+scaler = None
+explainer = None
+
+try:
+    binary_model = load_model("binary_model.pkl")
+    multiclass_model = load_model("multiclass_model.pkl")
+    print("Models loaded successfully")
+except Exception as e:
+    print(f"Warning: Failed to load models: {e}")
+
+try:
+    scaler = load_model("scaler.pkl")
+    print("Scaler loaded successfully")
+except Exception as e:
+    print(f"Warning: Failed to load scaler: {e}")
+
+# ── Load Stage 2 label encoder (from Sprint 3) ──────────────────────────────
+stage2_label_encoder = None
+try:
+    encoder_path = os.path.join(BASE_DIR, "models", "stage2_label_encoder.pkl")
+    with open(encoder_path, "rb") as f:
+        stage2_label_encoder = pickle.load(f)
+    print("Stage 2 label encoder loaded successfully. Classes:", list(stage2_label_encoder.classes_))
+except Exception as e:
+    print(f"Warning: Failed to load stage2_label_encoder.pkl: {e}")
+    print("Will use fallback mapping for attack types.")
+
+# ── Create SHAP explainer ─────────────────────────────────────────────────────
+try:
+    if shap is not None and binary_model is not None:
+        explainer = shap.TreeExplainer(binary_model)
+        print("Created SHAP TreeExplainer from binary_model")
+except Exception as e:
+    print(f"Warning: Failed to create TreeExplainer from binary_model: {e}")
+
+if shap is not None and explainer is None:
+    try:
+        explainer = load_model("shap_explainer_binary.pkl")
+        print("SHAP Explainer loaded successfully")
+    except Exception as e:
+        print(f"Warning: Failed to load SHAP Explainer: {e}")
+
+shap_explainer_binary = explainer
+
+# Write startup debug info
+try:
+    debug_file_path = os.path.join(BASE_DIR, "debug_detect.txt")
+    with open(debug_file_path, "w") as dbg:
+        dbg.write("=== BACKEND STARTUP DEBUG ===\n")
+        dbg.write(f"Binary model loaded: {binary_model is not None}\n")
+        dbg.write(f"Multiclass model loaded: {multiclass_model is not None}\n")
+        dbg.write(f"Scaler loaded: {scaler is not None}\n")
+        dbg.write(f"SHAP Explainer loaded: {shap_explainer_binary is not None}\n")
+        if binary_model is not None and hasattr(binary_model, "feature_names_in_"):
+            dbg.write(f"Binary model features: {list(binary_model.feature_names_in_)}\n")
+except Exception as dbg_err:
+    print(f"Startup debug failed: {dbg_err}")
+
+# ── CICIDS2017 feature columns (78 features) ──────────────────────────────────
+FEATURE_COLUMNS = [
+    "Destination Port","Flow Duration","Total Fwd Packets","Total Backward Packets",
+    "Total Length of Fwd Packets","Total Length of Bwd Packets","Fwd Packet Length Max",
+    "Fwd Packet Length Min","Fwd Packet Length Mean","Fwd Packet Length Std",
+    "Bwd Packet Length Max","Bwd Packet Length Min","Bwd Packet Length Mean",
+    "Bwd Packet Length Std","Flow Bytes/s","Flow Packets/s","Flow IAT Mean",
+    "Flow IAT Std","Flow IAT Max","Flow IAT Min","Fwd IAT Total","Fwd IAT Mean",
+    "Fwd IAT Std","Fwd IAT Max","Fwd IAT Min","Bwd IAT Total","Bwd IAT Mean",
+    "Bwd IAT Std","Bwd IAT Max","Bwd IAT Min","Fwd PSH Flags","Bwd PSH Flags",
+    "Fwd URG Flags","Bwd URG Flags","Fwd Header Length","Bwd Header Length",
+    "Fwd Packets/s","Bwd Packets/s","Min Packet Length","Max Packet Length",
+    "Packet Length Mean","Packet Length Std","Packet Length Variance","FIN Flag Count",
+    "SYN Flag Count","RST Flag Count","PSH Flag Count","ACK Flag Count","URG Flag Count",
+    "CWE Flag Count","ECE Flag Count","Down/Up Ratio","Average Packet Size",
+    "Avg Fwd Segment Size","Avg Bwd Segment Size","Fwd Header Length.1",
+    "Fwd Avg Bytes/Bulk","Fwd Avg Packets/Bulk","Fwd Avg Bulk Rate",
+    "Bwd Avg Bytes/Bulk","Bwd Avg Packets/Bulk","Bwd Avg Bulk Rate","Subflow Fwd Packets",
+    "Subflow Fwd Bytes","Subflow Bwd Packets","Subflow Bwd Bytes","Init_Win_bytes_forward",
+    "Init_Win_bytes_backward","act_data_pkt_fwd","min_seg_size_forward","Active Mean",
+    "Active Std","Active Max","Active Min","Idle Mean","Idle Std","Idle Max","Idle Min"
+]
+
+# ── Attack class metadata ──────────────────────────────────────────────────────
+ATTACK_INFO = {
+    "DoS_DDoS": {
+        "label": "DDoS / DoS Attack",
+        "color": "danger",
+        "icon": "ti-ripple",
+        "summary": "Your network is being flooded with massive amounts of traffic from multiple sources. The goal is to overwhelm your bandwidth and make your services unreachable to real users.",
+        "suggestions": [
+            "Contact your ISP immediately and request upstream traffic filtering or null-routing of attacking IPs.",
+            "Enable DDoS protection on your firewall — rate-limit UDP/ICMP traffic aggressively.",
+            "If on cloud (AWS/Azure/GCP), activate their built-in DDoS Shield service.",
+            "Consider a CDN/DDoS scrubbing service like Cloudflare or Akamai as a long-term fix."
+        ]
+    },
+    "PortScan": {
+        "label": "Port Scan",
+        "color": "warning",
+        "icon": "ti-radar",
+        "summary": "Someone is systematically probing your network to discover open ports and running services. This is often a reconnaissance step before a deeper attack.",
+        "suggestions": [
+            "Identify the scanning source IP and block it at your firewall immediately.",
+            "Audit which ports are actually open — close or firewall anything that doesn't need to be public.",
+            "Enable port-scan detection (SYN flood rules) in your IDS/IPS.",
+            "Consider moving sensitive services to non-standard ports or behind a VPN."
+        ]
+    },
+    "BruteForce": {
+        "label": "Brute Force Attack",
+        "color": "danger",
+        "icon": "ti-lock-open",
+        "summary": "An attacker is rapidly guessing passwords or credentials to gain unauthorized access — typically targeting SSH, FTP, or login pages.",
+        "suggestions": [
+            "Lock out the attacking IP at the firewall or using tools like fail2ban.",
+            "Enforce account lockout policies after 5–10 failed login attempts.",
+            "Enable multi-factor authentication (MFA) on all exposed services immediately.",
+            "Review logs for any successful logins from the attacking IP — it may have already gotten in."
+        ]
+    },
+    "Botnet": {
+        "label": "Botnet Traffic",
+        "color": "warning",
+        "icon": "ti-robot",
+        "summary": "Traffic patterns match known botnet command-and-control behavior. One or more devices on your network may be infected and communicating with an external attacker.",
+        "suggestions": [
+            "Isolate the suspected infected host(s) from the network immediately.",
+            "Run a full malware scan on flagged machines using updated AV/EDR tools.",
+            "Check outbound traffic for connections to known C2 domains/IPs using a threat intelligence feed.",
+            "Reimage compromised machines if infection is confirmed — don't just clean them."
+        ]
+    },
+    "Infiltration": {
+        "label": "Infiltration Attempt",
+        "color": "danger",
+        "icon": "ti-shield-off",
+        "summary": "An attacker may have already breached your perimeter and is attempting lateral movement — pivoting between systems to reach higher-value targets.",
+        "suggestions": [
+            "Treat this as a potential breach — initiate your incident response plan now.",
+            "Segment your network immediately to contain lateral movement.",
+            "Audit all internal traffic and authentication logs for unusual access patterns.",
+            "Engage a security professional or IR team if you don't have one on-call."
+        ]
+    },
+    "BENIGN": {
+        "label": "Benign Traffic",
+        "color": "success",
+        "icon": "ti-shield-check",
+        "summary": "No intrusion detected. Your network traffic looks normal.",
+        "suggestions": [
+            "Keep your firewall rules and IDS signatures up to date.",
+            "Schedule regular network audits to stay ahead of threats.",
+            "Consider setting up continuous monitoring for peace of mind."
+        ]
+    }
+}
+
+# ── PCAP feature extraction using scapy ───────────────────────────────────────
+def extract_features_from_pcap(pcap_bytes):
+    """
+    Extract CICIDS2017-compatible features from a PCAP file using scapy.
+    Groups packets into flows (5-tuple) and computes statistical features.
+    """
+    try:
+        from scapy.all import rdpcap, IP, TCP, UDP
+        from scapy.utils import PcapReader
+    except ImportError:
+        raise ImportError("scapy is required for PCAP processing. Install with: pip install scapy")
+
+    import tempfile, time
+
+    # Write bytes to temp file for scapy
+    with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as tmp:
+        tmp.write(pcap_bytes)
+        tmp_path = tmp.name
+
+    try:
+        packets = rdpcap(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    # Group packets into flows by 5-tuple (src_ip, dst_ip, src_port, dst_port, proto)
+    flows = defaultdict(list)
+    for pkt in packets:
+        if not pkt.haslayer(IP):
+            continue
+        ip = pkt[IP]
+        proto = ip.proto
+        src_port = dst_port = 0
+        flags = 0
+        if pkt.haslayer(TCP):
+            src_port = pkt[TCP].sport
+            dst_port = pkt[TCP].dport
+            flags = int(pkt[TCP].flags)
+        elif pkt.haslayer(UDP):
+            src_port = pkt[UDP].sport
+            dst_port = pkt[UDP].dport
+        key = (ip.src, ip.dst, src_port, dst_port, proto)
+        flows[key].append({
+            "time": float(pkt.time),
+            "size": len(pkt),
+            "ip_size": len(ip),
+            "flags": flags,
+            "dst_port": dst_port
+        })
+
+    rows = []
+    for flow_key, pkts in flows.items():
+        if len(pkts) < 2:
+            continue
+        pkts.sort(key=lambda x: x["time"])
+        times = [p["time"] for p in pkts]
+        sizes = [p["size"] for p in pkts]
+        iats  = [times[i+1] - times[i] for i in range(len(times)-1)]
+        dur   = times[-1] - times[0]
+
+        # Split fwd/bwd (heuristic: first packet direction = fwd)
+        fwd = pkts[::2]
+        bwd = pkts[1::2]
+        fwd_sizes = [p["size"] for p in fwd]
+        bwd_sizes = [p["size"] for p in bwd]
+        fwd_times = [p["time"] for p in fwd]
+        bwd_times = [p["time"] for p in bwd]
+        fwd_iats  = [fwd_times[i+1]-fwd_times[i] for i in range(len(fwd_times)-1)] or [0]
+        bwd_iats  = [bwd_times[i+1]-bwd_times[i] for i in range(len(bwd_times)-1)] or [0]
+
+        all_flags = [p["flags"] for p in pkts]
+        def flag_count(bit): return sum(1 for f in all_flags if f & bit)
+
+        dur_us = dur * 1e6 if dur > 0 else 1
+        row = {
+            "Destination Port": flow_key[3],
+            "Flow Duration": dur_us,
+            "Total Fwd Packets": len(fwd),
+            "Total Backward Packets": len(bwd),
+            "Total Length of Fwd Packets": sum(fwd_sizes),
+            "Total Length of Bwd Packets": sum(bwd_sizes),
+            "Fwd Packet Length Max": max(fwd_sizes) if fwd_sizes else 0,
+            "Fwd Packet Length Min": min(fwd_sizes) if fwd_sizes else 0,
+            "Fwd Packet Length Mean": np.mean(fwd_sizes) if fwd_sizes else 0,
+            "Fwd Packet Length Std": np.std(fwd_sizes) if fwd_sizes else 0,
+            "Bwd Packet Length Max": max(bwd_sizes) if bwd_sizes else 0,
+            "Bwd Packet Length Min": min(bwd_sizes) if bwd_sizes else 0,
+            "Bwd Packet Length Mean": np.mean(bwd_sizes) if bwd_sizes else 0,
+            "Bwd Packet Length Std": np.std(bwd_sizes) if bwd_sizes else 0,
+            "Flow Bytes/s": sum(sizes) / (dur if dur > 0 else 1),
+            "Flow Packets/s": len(pkts) / (dur if dur > 0 else 1),
+            "Flow IAT Mean": np.mean(iats) if iats else 0,
+            "Flow IAT Std": np.std(iats) if iats else 0,
+            "Flow IAT Max": max(iats) if iats else 0,
+            "Flow IAT Min": min(iats) if iats else 0,
+            "Fwd IAT Total": sum(fwd_iats),
+            "Fwd IAT Mean": np.mean(fwd_iats),
+            "Fwd IAT Std": np.std(fwd_iats),
+            "Fwd IAT Max": max(fwd_iats),
+            "Fwd IAT Min": min(fwd_iats),
+            "Bwd IAT Total": sum(bwd_iats),
+            "Bwd IAT Mean": np.mean(bwd_iats),
+            "Bwd IAT Std": np.std(bwd_iats),
+            "Bwd IAT Max": max(bwd_iats),
+            "Bwd IAT Min": min(bwd_iats),
+            "Fwd PSH Flags": flag_count(0x08),
+            "Bwd PSH Flags": 0,
+            "Fwd URG Flags": flag_count(0x20),
+            "Bwd URG Flags": 0,
+            "Fwd Header Length": len(fwd) * 20,
+            "Bwd Header Length": len(bwd) * 20,
+            "Fwd Packets/s": len(fwd) / (dur if dur > 0 else 1),
+            "Bwd Packets/s": len(bwd) / (dur if dur > 0 else 1),
+            "Min Packet Length": min(sizes),
+            "Max Packet Length": max(sizes),
+            "Packet Length Mean": np.mean(sizes),
+            "Packet Length Std": np.std(sizes),
+            "Packet Length Variance": np.var(sizes),
+            "FIN Flag Count": flag_count(0x01),
+            "SYN Flag Count": flag_count(0x02),
+            "RST Flag Count": flag_count(0x04),
+            "PSH Flag Count": flag_count(0x08),
+            "ACK Flag Count": flag_count(0x10),
+            "URG Flag Count": flag_count(0x20),
+            "CWE Flag Count": flag_count(0x80),
+            "ECE Flag Count": flag_count(0x40),
+            "Down/Up Ratio": len(bwd) / len(fwd) if len(fwd) > 0 else 0,
+            "Average Packet Size": np.mean(sizes),
+            "Avg Fwd Segment Size": np.mean(fwd_sizes) if fwd_sizes else 0,
+            "Avg Bwd Segment Size": np.mean(bwd_sizes) if bwd_sizes else 0,
+            "Fwd Header Length.1": len(fwd) * 20,
+            "Fwd Avg Bytes/Bulk": 0, "Fwd Avg Packets/Bulk": 0, "Fwd Avg Bulk Rate": 0,
+            "Bwd Avg Bytes/Bulk": 0, "Bwd Avg Packets/Bulk": 0, "Bwd Avg Bulk Rate": 0,
+            "Subflow Fwd Packets": len(fwd),
+            "Subflow Fwd Bytes": sum(fwd_sizes),
+            "Subflow Bwd Packets": len(bwd),
+            "Subflow Bwd Bytes": sum(bwd_sizes),
+            "Init_Win_bytes_forward": 0,
+            "Init_Win_bytes_backward": 0,
+            "act_data_pkt_fwd": len(fwd),
+            "min_seg_size_forward": min(fwd_sizes) if fwd_sizes else 0,
+            "Active Mean": 0, "Active Std": 0, "Active Max": 0, "Active Min": 0,
+            "Idle Mean": 0, "Idle Std": 0, "Idle Max": 0, "Idle Min": 0,
+        }
+        rows.append(row)
+
+    if not rows:
+        raise ValueError("No valid IP flows found in PCAP file.")
+
+    return pd.DataFrame(rows)
+
+
+def preprocess_csv(csv_bytes):
+    """Load, validate, and clean a CICIDS2017-format CSV.
+
+    Validation steps (run *before* column alignment):
+      1. Row count must be > 0.
+      2. Uploaded columns must overlap with CICIDS2017 features (min 8 of 78).
+      3. Key feature columns must contain plausible values (skipped for
+         pre-normalized/scaled data where all values are in [0, 1]).
+      4. Data must not be nearly-constant across all columns.
+    """
+    df = pd.read_csv(io.BytesIO(csv_bytes))
+    df.columns = df.columns.str.strip()
+
+    # Drop label column if present
+    label_cols = [c for c in df.columns if "label" in c.lower()]
+    if label_cols:
+        df = df.drop(columns=label_cols)
+
+    # ── Validation 1: non-empty ────────────────────────────────────────────
+    if len(df) == 0:
+        raise ValueError("Uploaded CSV contains no data rows")
+
+    # ── Validation 2: column-overlap check ─────────────────────────────────
+    # The uploaded CSV must contain a meaningful number of CICIDS2017 feature
+    # columns.  A completely unrelated file (e.g. "nots,href,action") shares
+    # zero columns and must be rejected outright.
+    matched_cols = [c for c in df.columns if c in FEATURE_COLUMNS]
+    MIN_MATCHED_COLS = max(8, int(len(FEATURE_COLUMNS) * 0.10))  # ≈8 of 78
+    if len(matched_cols) < MIN_MATCHED_COLS:
+        raise ValueError(
+            f"File does not contain valid network traffic data. "
+            f"Only {len(matched_cols)} of {len(FEATURE_COLUMNS)} expected "
+            f"CICIDS2017 feature columns were found (minimum {MIN_MATCHED_COLS} required)"
+        )
+
+    # ── Validation 3: key-feature range checks ─────────────────────────────
+    # First, detect whether the data has been pre-normalized / scaled
+    # (all numeric values roughly in [0, 1]).  Normalized data is already
+    # pre-processed and valid; raw-range checks only apply to raw CSVs.
+    numeric_df = df[matched_cols].apply(pd.to_numeric, errors="coerce")
+    _all_vals = numeric_df.values.flatten()
+    _all_vals = _all_vals[~np.isnan(_all_vals)]
+    is_normalized = len(_all_vals) > 0 and np.all(_all_vals >= 0) and np.all(_all_vals <= 1.1)
+
+    if not is_normalized:
+        # Raw-value range checks (only for non-normalized data)
+        range_rules = {
+            "Flow Duration": {
+                "check": lambda s: (s >= 0).all() and (s < 1e8).all(),
+            },
+            "Total Fwd Packets": {
+                "check": lambda s: (s >= 0).all(),
+            },
+            "Flow Bytes/s": {
+                "check": lambda s: (s >= 0).all(),
+            },
+            "Destination Port": {
+                "check": lambda s: (s >= 0).all() and (s <= 65535).all(),
+            },
+        }
+
+        for col_name, rule in range_rules.items():
+            if col_name in df.columns:
+                series = pd.to_numeric(df[col_name], errors="coerce")
+                # NaN after coercion means non-numeric garbage → invalid
+                if series.isna().any():
+                    raise ValueError(
+                        f"File does not contain valid network traffic data "
+                        f"(column '{col_name}' has non-numeric values)"
+                    )
+                if not rule["check"](series):
+                    raise ValueError("File does not contain valid network traffic data")
+
+    # ── Validation 4: constant / trivial data guard ────────────────────────
+    # Only consider numeric columns that overlap with the expected features.
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    overlap = [c for c in numeric_cols if c in FEATURE_COLUMNS]
+    if overlap:
+        variances = df[overlap].var()
+        zero_var_ratio = (variances == 0).sum() / len(overlap)
+        if zero_var_ratio > 0.8:
+            raise ValueError("Input file appears to be constant or invalid data")
+
+    # ── Column alignment (existing logic) ──────────────────────────────────
+    for col in FEATURE_COLUMNS:
+        if col not in df.columns:
+            df[col] = 0
+    df = df[FEATURE_COLUMNS]
+    df = df.apply(pd.to_numeric, errors="coerce").fillna(0)  # 防止字符串混入，强制转换为数值
+    return df
+
+
+def run_detection(df, explain=False):
+    """Run two-stage detection and return result dict."""
+    df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+    # Apply empirical normalization and heuristics to handle raw values
+    try:
+        from preprocessing import normalize_raw_features
+        df = normalize_raw_features(df)
+    except Exception as e:
+        print(f"Warning: Empirical normalization failed: {e}")
+
+    # Determine which features to use based on loaded scaler or model
+    if scaler is not None and hasattr(scaler, "feature_names_in_"):
+        cols = list(scaler.feature_names_in_)
+    elif binary_model is not None and hasattr(binary_model, "feature_names_in_"):
+        cols = list(binary_model.feature_names_in_)
+    else:
+        cols = FEATURE_COLUMNS
+
+    # Align features
+    for c in cols:
+        if c not in df.columns:
+            df[c] = 0.0
+    X = df[cols].values
+    # MOCK feature importance for demo mode
+    demo_feature_importance = [
+        {"name": "Destination Port", "value": 0.38},
+        {"name": "Flow Duration", "value": 0.21},
+        {"name": "Init_Win_bytes_forward", "value": 0.16},
+        {"name": "Total Length of Fwd Packets", "value": 0.12},
+        {"name": "Fwd Packet Length Max", "value": 0.08},
+        {"name": "Bwd Packet Length Std", "value": 0.05}
+    ]
+
+    if binary_model is None or multiclass_model is None:
+        # Demo mode — random predictions for testing without models
+        import random
+        total = len(X)
+        n_attack = random.randint(int(total * 0.3), total)
+        is_attack = n_attack > total * 0.5
+        if not is_attack:
+            return {
+                "is_attack": False,
+                "stage1_confidence": round(random.uniform(0.85, 0.99), 4),
+                "flagged_flows": 0,
+                "total_flows": total,
+                "attack_type": None,
+                "attack_info": ATTACK_INFO["BENIGN"],
+                "top_features": [],
+                "feature_importance": demo_feature_importance,
+                "demo_mode": True,
+                "attack_breakdown": {},
+                "local_explanation": None
+            }
+        labels = ["DoS_DDoS","PortScan","BruteForce","Botnet","Infiltration"]
+        attack_type = random.choice(labels)
+        random_breakdown = {cat: random.randint(1, n_attack//2) for cat in labels[:random.randint(2,4)]}
+        demo_features = random.sample(cols, 3)
+        # Randomize demo values slightly for variation
+        import copy
+        dfi = copy.deepcopy(demo_feature_importance)
+        for d in dfi:
+            d["value"] = round(d["value"] * random.uniform(0.9, 1.1), 4)
+        dfi = sorted(dfi, key=lambda x: x["value"], reverse=True)
+
+        demo_pos = [
+            {"feature": "Destination Port", "contribution": round(0.24 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Flow Duration", "contribution": round(0.18 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Packet Length Std", "contribution": round(0.15 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Average Packet Size", "contribution": round(0.12 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Fwd Packet Length Max", "contribution": round(0.09 * random.uniform(0.85, 1.15), 2)}
+        ]
+        demo_neg = [
+            {"feature": "Flow IAT Mean", "contribution": round(-0.11 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Total Length of Fwd Packets", "contribution": round(-0.08 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Bwd Packet Length Min", "contribution": round(-0.06 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Flow IAT Min", "contribution": round(-0.04 * random.uniform(0.85, 1.15), 2)},
+            {"feature": "Bwd Packet Length Std", "contribution": round(-0.02 * random.uniform(0.85, 1.15), 2)}
+        ]
+        demo_pos = sorted(demo_pos, key=lambda x: x["contribution"], reverse=True)
+        demo_neg = sorted(demo_neg, key=lambda x: x["contribution"])
+
+        return {
+            "is_attack": True,
+            "stage1_confidence": round(random.uniform(0.85, 0.99), 4),
+            "stage2_confidence": round(random.uniform(0.80, 0.99), 4),
+            "flagged_flows": n_attack,
+            "total_flows": total,
+            "attack_type": attack_type,
+            "attack_info": ATTACK_INFO.get(attack_type, ATTACK_INFO["DoS_DDoS"]),
+            "top_features": demo_features,
+            "feature_importance": dfi,
+            "demo_mode": True,
+            "attack_breakdown": random_breakdown,
+            "local_explanation": {
+                "positive": demo_pos,
+                "negative": demo_neg,
+                "positive_features": demo_pos,
+                "negative_features": demo_neg
+            }
+        }
+
+    # Scale features only if the data is not already normalized/scaled
+    _all_vals = X.flatten()
+    _all_vals = _all_vals[~np.isnan(_all_vals)]
+    is_normalized = len(_all_vals) > 0 and np.all(_all_vals >= -0.1) and np.all(_all_vals <= 1.1)
+
+    if scaler is not None and not is_normalized:
+        try:
+            # 确保使用与训练时相同的特征顺序
+            if hasattr(scaler, 'feature_names_in_'):
+                # 重新构建 DataFrame 以保证列顺序
+                X_df = pd.DataFrame(X, columns=cols)
+                # 只保留 scaler 期望的特征，缺失的补 0
+                scaler_cols = list(scaler.feature_names_in_)
+                for c in scaler_cols:
+                    if c not in X_df.columns:
+                        X_df[c] = 0.0
+                X_scaled = scaler.transform(X_df[scaler_cols])
+            else:
+                X_scaled = scaler.transform(X)
+        except Exception as e:
+            print(f"Error during feature scaling: {e}")
+            X_scaled = X
+    else:
+        X_scaled = X
+    print(f"X_scaled min:", X_scaled.min(axis=0)[:5])  # debug
+    print(f"X_scaled max:", X_scaled.max(axis=0)[:5])  # debug
+
+    # Stage 1 — binary classification
+    binary_preds = binary_model.predict(X_scaled)
+    binary_proba = binary_model.predict_proba(X_scaled)
+    n_attack = int(np.sum(binary_preds == 1))
+    total = len(X_scaled)
+    stage1_conf = float(np.mean(np.max(binary_proba, axis=1)))
+
+    if n_attack == 0:
+        feat_importance = []
+        if binary_model is not None and hasattr(binary_model, "feature_importances_"):
+            try:
+                feat_imp = sorted(list(zip(cols, binary_model.feature_importances_)), key=lambda x: x[1], reverse=True)
+                feat_importance = [{"name": f[0], "value": round(float(f[1]), 4)} for f in feat_imp[:6]]
+            except Exception:
+                pass
+        if not feat_importance:
+            feat_importance = demo_feature_importance
+        return {
+            "is_attack": False,
+            "stage1_confidence": round(stage1_conf, 4),
+            "flagged_flows": 0,
+            "total_flows": total,
+            "attack_type": None,
+            "attack_info": ATTACK_INFO["BENIGN"],
+            "class_distribution": {"BENIGN": total},
+            "attack_breakdown": {},
+            "top_features": [],
+            "feature_importance": feat_importance,
+            "demo_mode": False,
+            "local_explanation": None
+        }
+    print(f"Binary predictions: {binary_preds}")
+    print(f"Binary probabilities: {binary_proba[:,1]}")
+    print(f"stage 1: Number of attacks predicted: {n_attack}")
+    print(f"DEBUG: Stage 1 predicted attacks = {n_attack} out of {total} flows (confidence: {stage1_conf:.4f})")
+
+    # Stage 2 — multi-class on flagged flows only
+    X_attack_scaled = X_scaled[binary_preds == 1]
+    mc_preds = multiclass_model.predict(X_attack_scaled)
+    mc_proba = multiclass_model.predict_proba(X_attack_scaled)
+    stage2_conf = float(np.mean(np.max(mc_proba, axis=1)))
+    print(f"Multiclass model classes: {multiclass_model.classes_}")  # debug
+
+    # Most frequent predicted class
+    unique, counts = np.unique(mc_preds, return_counts=True)
+    top_class = unique[np.argmax(counts)]
+
+    # ── Get attack type using the loaded label encoder ──────────────────────────
+    if stage2_label_encoder is not None:
+        try:
+            # top_class is an integer; inverse_transform returns a list of class names
+            val = stage2_label_encoder.inverse_transform([int(top_class)])[0]
+            if pd.isna(val) or not isinstance(val, str):
+                attack_type = "Unknown_Attack"
+            else:
+                attack_type = str(val)
+        except Exception as e:
+            print(f"Error mapping class {top_class}: {e}")
+            attack_type = "Unknown_Attack"
+    else:
+        # Fallback mapping (must match the training order from Sprint 3)
+        fallback_attack_map = {
+            0: "Botnet",
+            1: "BruteForce",
+            2: "DoS_DDoS",
+            3: "Infiltration",
+            4: "PortScan"
+        }
+        attack_type = fallback_attack_map.get(int(top_class), "Unknown_Attack")
+
+    # ── Build class_distribution and attack_breakdown using the encoder ─────────
+    class_distribution = {}
+    for k, v in zip(unique, counts):
+        if stage2_label_encoder is not None:
+            try:
+                val = stage2_label_encoder.inverse_transform([int(k)])[0]
+                if pd.isna(val) or not isinstance(val, str):
+                    class_name = "Unknown_Attack"
+                else:
+                    class_name = str(val)
+            except:
+                class_name = f"Class_{k}"
+        else:
+            # Use same fallback mapping
+            fallback = fallback_attack_map.get(int(k), f"Class_{k}")
+            class_name = fallback
+        class_distribution[class_name] = int(v)
+
+    # attack_breakdown excludes any BENIGN (but there is no BENIGN in Stage 2 outputs)
+    attack_breakdown = class_distribution.copy()  # stage2 没有benign，所以直接复制整个分布作为攻击细分
+
+    # Compute top_features and feature_importance via SHAP or global importances
+    top_features = []
+    feature_importance = []
+    feat_imp = None
+
+    if shap_explainer_binary is not None:
+        try:
+            shap_vals = shap_explainer_binary.shap_values(X_attack_scaled)
+            if isinstance(shap_vals, list):
+                sv = shap_vals[1] if len(shap_vals) > 1 else shap_vals[0]
+            elif hasattr(shap_vals, "values"):
+                sv = shap_vals.values
+            else:
+                sv = shap_vals
+            mean_abs_shap = np.mean(np.abs(sv), axis=0)
+            total_shap = np.sum(mean_abs_shap)
+            if total_shap > 0:
+                feat_imp = sorted(list(zip(cols, mean_abs_shap / total_shap)), key=lambda x: x[1], reverse=True)
+            else:
+                feat_imp = sorted(list(zip(cols, mean_abs_shap)), key=lambda x: x[1], reverse=True)
+        except Exception as shap_err:
+            print(f"Error computing SHAP: {shap_err}")
+
+    if feat_imp is None:
+        if hasattr(binary_model, "feature_importances_"):
+            try:
+                feat_imp = sorted(list(zip(cols, binary_model.feature_importances_)), key=lambda x: x[1], reverse=True)
+            except Exception:
+                pass
+
+    if feat_imp:
+        top_features = [f[0] for f in feat_imp[:3]]
+        feature_importance = [{"name": f[0], "value": round(float(f[1]), 4)} for f in feat_imp[:6]]
+    else:
+        top_features = ["Destination Port", "Flow Duration", "Total Fwd Packets"]
+        feature_importance = demo_feature_importance
+
+    local_explanation = None
+    if explainer and shap_explainer_binary is not None:
+        try:
+            attack_indices = np.where(binary_preds == 1)[0]
+            if len(attack_indices) > 0:
+                print("Computing SHAP explanations...")
+
+                # Sample up to 200 attack flows to keep computation fast
+                if len(attack_indices) > 200:
+                    sampled_indices = attack_indices[:200]
+                else:
+                    sampled_indices = attack_indices
+
+                X_scaled_attack = X_scaled[sampled_indices]
+                X_attack_df = pd.DataFrame(X_scaled_attack, columns=cols)  # 关键修复：转换为 DataFrame 并带上列名
+                shap_values = explainer.shap_values(X_attack_df)
+                # 提取shap矩阵（二分类取正类）
+                if isinstance(shap_values, list):
+                    shap_matrix = shap_values[1] if len(shap_values) > 1 else shap_values[0]
+                elif hasattr(shap_values, "values"):
+                    shap_matrix = shap_values.values
+                    if len(shap_matrix.shape) == 3:
+                        shap_matrix = shap_matrix[:, :, 1]
+                elif isinstance(shap_values, np.ndarray):
+                    if len(shap_values.shape) == 3:
+                        shap_matrix = shap_values[:, :, 1]
+                    else:
+                        shap_matrix = shap_values
+                else:
+                    shap_matrix = np.array(shap_values)
+
+                # Average contributions over all sampled attack flows
+                mean_shap = np.mean(shap_matrix, axis=0)
+
+                pos_features = []
+                neg_features = []
+                for col_name, val in zip(cols, mean_shap):
+                    val_f = float(val)
+                    if val_f > 0:
+                        pos_features.append({"feature": col_name, "contribution": round(val_f, 4)})
+                    elif val_f < 0:
+                        neg_features.append({"feature": col_name, "contribution": round(val_f, 4)})
+
+                pos_features = sorted(pos_features, key=lambda x: abs(x["contribution"]), reverse=True)[:5]
+                neg_features = sorted(neg_features, key=lambda x: abs(x["contribution"]), reverse=True)[:5]
+
+                local_explanation = {
+                    "positive": pos_features,
+                    "negative": neg_features,
+                    "positive_features": pos_features,
+                    "negative_features": neg_features
+                }
+        except Exception as shap_err:
+            print(f"Error computing local SHAP explanation: {shap_err}")
+
+    return {
+        "is_attack": True,
+        "stage1_confidence": round(stage1_conf, 4),
+        "stage2_confidence": round(stage2_conf, 4),
+        "flagged_flows": n_attack,
+        "total_flows": total,
+        "attack_type": attack_type,
+        "attack_info": ATTACK_INFO.get(attack_type, ATTACK_INFO["DoS_DDoS"]),
+        "class_distribution": class_distribution,
+        "attack_breakdown": attack_breakdown,
+        "top_features": top_features,
+        "feature_importance": feature_importance,
+        "demo_mode": False,
+        "local_explanation": local_explanation
+    }
