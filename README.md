@@ -15,6 +15,9 @@ The system features a decoupled client-server architecture with a premium glassm
 * **DeepSeek LLM Incident Reports**: Connects to the DeepSeek Chat API to produce structured mitigation advice cards (Executive Analysis, Detailed Breakdown, Why Flagged, Action suggestions).
 * **Live Sniffing Agent**: Python-based local sniffer (`live_capture.py`) intercepts active Network Interface Card (NIC) traffic, generates clean bidirectional flows via Scapy, and uploads them dynamically to the cloud API.
 * **Responsive Glassmorphic UI**: High-fidelity dashboard (`dashboard.html` and `live_monitor.html`) featuring custom HSL styling, responsive CSS grids, and interactive Chart.js charts.
+* **Modular Architecture**: Decouples Flask routes (`app.py`) from core ML classification functions (`detector.py`) to maximize code maintainability.
+* **Empirical Feature Normalization**: Preprocessing pipeline (`preprocessing.py`) handles raw, unscaled CSV and PCAP inputs, translating them to standardized model ranges and applying split threshold corrections for robust real-time inference.
+* **Dataset Portability**: Includes tools (`convert_cesnet.py`) to map NetFlow formats like CESNET directly onto the NIDS feature space.
 * **Full Testing Harness**: Running `run_tests.py` launches 25 tests checking data pipelines, API integrations, and validation boundaries.
 
 ---
@@ -23,7 +26,11 @@ The system features a decoupled client-server architecture with a premium glassm
 
 ```
 .
-├── app.py                     # Flask API backend & inference pipeline
+├── app.py                     # Flask HTTP API routing server
+├── detector.py                # Core ML engine (PCAP extraction, CSV preprocessing, detection)
+├── preprocessing.py           # Empirical normalization & feature alignment pipeline
+├── convert_cesnet.py          # CESNET-to-CICIDS2017 feature mapping tool
+├── generate_cesnet_test_data.py # Automated test data generation tool
 ├── index.html                 # Brand landing page
 ├── dashboard.html             # Historical log, CSV upload & AI reporting dashboard
 ├── live_monitor.html          # Live network sniffing monitor controls
@@ -33,9 +40,10 @@ The system features a decoupled client-server architecture with a premium glassm
 ├── TEST_PLAN.md               # Detailed test case specifications
 ├── train.py                   # XGBoost models and scaler training script
 ├── models/
-│   ├── scaler.pkl             # Serialized StandardScaler
+│   ├── scaler.pkl             # Serialized MinMaxScaler
 │   ├── binary_model.pkl       # Stage 1 XGBoost model
-│   └── multiclass_model.pkl   # Stage 2 XGBoost model
+│   ├── multiclass_model.pkl   # Stage 2 XGBoost model
+│   └── stage2_label_encoder.pkl # Class name encoder for multi-label predictions
 └── .gitignore                 # Safe staging list (ignores .env/caches)
 ```
 
