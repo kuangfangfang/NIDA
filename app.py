@@ -81,6 +81,18 @@ try:
 except Exception as e:
     print(f"Warning: Failed to load scaler: {e}")
 
+# ── Load Stage 2 label encoder (from Sprint 3) ──────────────────────────────
+stage2_label_encoder = None
+try:
+    encoder_path = os.path.join(BASE_DIR, "models", "stage2_label_encoder.pkl")
+    with open(encoder_path, "rb") as f:
+        stage2_label_encoder = pickle.load(f)
+    print("Stage 2 label encoder loaded successfully. Classes:", list(stage2_label_encoder.classes_))
+except Exception as e:
+    print(f"Warning: Failed to load stage2_label_encoder.pkl: {e}")
+    print("Will use fallback mapping for attack types.")
+
+
 try:
     if shap is not None and binary_model is not None:
         explainer = shap.TreeExplainer(binary_model)
@@ -136,8 +148,8 @@ FEATURE_COLUMNS = [
 
 # ── Attack class metadata ──────────────────────────────────────────────────────
 ATTACK_INFO = {
-    "DDoS": {
-        "label": "DDoS Attack",
+    "DoS_DDoS": {
+        "label": "DDoS / DoS Attack",
         "color": "danger",
         "icon": "ti-ripple",
         "summary": "Your network is being flooded with massive amounts of traffic from multiple sources. The goal is to overwhelm your bandwidth and make your services unreachable to real users.",
@@ -160,7 +172,7 @@ ATTACK_INFO = {
             "Consider moving sensitive services to non-standard ports or behind a VPN."
         ]
     },
-    "Brute Force": {
+    "BruteForce": {
         "label": "Brute Force Attack",
         "color": "danger",
         "icon": "ti-lock-open",
@@ -172,8 +184,8 @@ ATTACK_INFO = {
             "Review logs for any successful logins from the attacking IP — it may have already gotten in."
         ]
     },
-    "Bot": {
-        "label": "Bot / Botnet Traffic",
+    "Botnet": {
+        "label": "Botnet Traffic",
         "color": "warning",
         "icon": "ti-robot",
         "summary": "Traffic patterns match known botnet command-and-control behavior. One or more devices on your network may be infected and communicating with an external attacker.",
@@ -196,30 +208,6 @@ ATTACK_INFO = {
             "Engage a security professional or IR team if you don't have one on-call."
         ]
     },
-    "Web Attack": {
-        "label": "Web Application Attack",
-        "color": "warning",
-        "icon": "ti-world-off",
-        "summary": "Your web application is being targeted — likely SQL injection, XSS, or other application-layer exploits designed to steal data or gain server access.",
-        "suggestions": [
-            "Enable a Web Application Firewall (WAF) — Cloudflare, ModSecurity, or AWS WAF are good options.",
-            "Immediately review your web server error logs for injection attempts.",
-            "Patch your web application frameworks and CMS (WordPress, Drupal, etc.) to latest versions.",
-            "Check your database for unauthorized queries or data exfiltration."
-        ]
-    },
-    "Heartbleed": {
-        "label": "Heartbleed Exploit",
-        "color": "danger",
-        "icon": "ti-heart-broken",
-        "summary": "Traffic matches the Heartbleed vulnerability (CVE-2014-0160), an OpenSSL bug that can expose sensitive memory including private keys and passwords.",
-        "suggestions": [
-            "Immediately check your OpenSSL version — if below 1.0.1g, patch it now.",
-            "Revoke and reissue all SSL/TLS certificates on affected servers.",
-            "Rotate all passwords and session tokens that may have been exposed.",
-            "Audit what data could have been leaked — treat all secrets as compromised."
-        ]
-    },
     "BENIGN": {
         "label": "Benign Traffic",
         "color": "success",
@@ -231,7 +219,104 @@ ATTACK_INFO = {
             "Consider setting up continuous monitoring for peace of mind."
         ]
     }
-}
+}    
+# ATTACK_INFO = {
+#     "DDoS": {
+#         "label": "DDoS Attack",
+#         "color": "danger",
+#         "icon": "ti-ripple",
+#         "summary": "Your network is being flooded with massive amounts of traffic from multiple sources. The goal is to overwhelm your bandwidth and make your services unreachable to real users.",
+#         "suggestions": [
+#             "Contact your ISP immediately and request upstream traffic filtering or null-routing of attacking IPs.",
+#             "Enable DDoS protection on your firewall — rate-limit UDP/ICMP traffic aggressively.",
+#             "If on cloud (AWS/Azure/GCP), activate their built-in DDoS Shield service.",
+#             "Consider a CDN/DDoS scrubbing service like Cloudflare or Akamai as a long-term fix."
+#         ]
+#     },
+#     "PortScan": {
+#         "label": "Port Scan",
+#         "color": "warning",
+#         "icon": "ti-radar",
+#         "summary": "Someone is systematically probing your network to discover open ports and running services. This is often a reconnaissance step before a deeper attack.",
+#         "suggestions": [
+#             "Identify the scanning source IP and block it at your firewall immediately.",
+#             "Audit which ports are actually open — close or firewall anything that doesn't need to be public.",
+#             "Enable port-scan detection (SYN flood rules) in your IDS/IPS.",
+#             "Consider moving sensitive services to non-standard ports or behind a VPN."
+#         ]
+#     },
+#     "Brute Force": {
+#         "label": "Brute Force Attack",
+#         "color": "danger",
+#         "icon": "ti-lock-open",
+#         "summary": "An attacker is rapidly guessing passwords or credentials to gain unauthorized access — typically targeting SSH, FTP, or login pages.",
+#         "suggestions": [
+#             "Lock out the attacking IP at the firewall or using tools like fail2ban.",
+#             "Enforce account lockout policies after 5–10 failed login attempts.",
+#             "Enable multi-factor authentication (MFA) on all exposed services immediately.",
+#             "Review logs for any successful logins from the attacking IP — it may have already gotten in."
+#         ]
+#     },
+#     "Bot": {
+#         "label": "Bot / Botnet Traffic",
+#         "color": "warning",
+#         "icon": "ti-robot",
+#         "summary": "Traffic patterns match known botnet command-and-control behavior. One or more devices on your network may be infected and communicating with an external attacker.",
+#         "suggestions": [
+#             "Isolate the suspected infected host(s) from the network immediately.",
+#             "Run a full malware scan on flagged machines using updated AV/EDR tools.",
+#             "Check outbound traffic for connections to known C2 domains/IPs using a threat intelligence feed.",
+#             "Reimage compromised machines if infection is confirmed — don't just clean them."
+#         ]
+#     },
+#     "Infiltration": {
+#         "label": "Infiltration Attempt",
+#         "color": "danger",
+#         "icon": "ti-shield-off",
+#         "summary": "An attacker may have already breached your perimeter and is attempting lateral movement — pivoting between systems to reach higher-value targets.",
+#         "suggestions": [
+#             "Treat this as a potential breach — initiate your incident response plan now.",
+#             "Segment your network immediately to contain lateral movement.",
+#             "Audit all internal traffic and authentication logs for unusual access patterns.",
+#             "Engage a security professional or IR team if you don't have one on-call."
+#         ]
+#     },
+#     "Web Attack": {
+#         "label": "Web Application Attack",
+#         "color": "warning",
+#         "icon": "ti-world-off",
+#         "summary": "Your web application is being targeted — likely SQL injection, XSS, or other application-layer exploits designed to steal data or gain server access.",
+#         "suggestions": [
+#             "Enable a Web Application Firewall (WAF) — Cloudflare, ModSecurity, or AWS WAF are good options.",
+#             "Immediately review your web server error logs for injection attempts.",
+#             "Patch your web application frameworks and CMS (WordPress, Drupal, etc.) to latest versions.",
+#             "Check your database for unauthorized queries or data exfiltration."
+#         ]
+#     },
+#     "Heartbleed": {
+#         "label": "Heartbleed Exploit",
+#         "color": "danger",
+#         "icon": "ti-heart-broken",
+#         "summary": "Traffic matches the Heartbleed vulnerability (CVE-2014-0160), an OpenSSL bug that can expose sensitive memory including private keys and passwords.",
+#         "suggestions": [
+#             "Immediately check your OpenSSL version — if below 1.0.1g, patch it now.",
+#             "Revoke and reissue all SSL/TLS certificates on affected servers.",
+#             "Rotate all passwords and session tokens that may have been exposed.",
+#             "Audit what data could have been leaked — treat all secrets as compromised."
+#         ]
+#     },
+#     "BENIGN": {
+#         "label": "Benign Traffic",
+#         "color": "success",
+#         "icon": "ti-shield-check",
+#         "summary": "No intrusion detected. Your network traffic looks normal.",
+#         "suggestions": [
+#             "Keep your firewall rules and IDS signatures up to date.",
+#             "Schedule regular network audits to stay ahead of threats.",
+#             "Consider setting up continuous monitoring for peace of mind."
+#         ]
+#     }
+# }
 
 # ── PCAP feature extraction using scapy ───────────────────────────────────────
 def extract_features_from_pcap(pcap_bytes):
@@ -522,7 +607,7 @@ def run_detection(df, explain=False):
                 "attack_breakdown": {},
                 "local_explanation": None
             }
-        labels = ["DDoS","PortScan","Brute Force","Bot","Infiltration","Web Attack","Heartbleed"]
+        labels = ["DoS_DDoS","PortScan","Brute Force","Bot","Infiltration"]
         attack_type = random.choice(labels)
         random_breakdown = {cat: random.randint(1, n_attack//2) for cat in labels[:random.randint(2,4)]}
         demo_features = random.sample(cols, 3)
@@ -557,7 +642,7 @@ def run_detection(df, explain=False):
             "flagged_flows": n_attack,
             "total_flows": total,
             "attack_type": attack_type,
-            "attack_info": ATTACK_INFO.get(attack_type, ATTACK_INFO["DDoS"]),
+            "attack_info": ATTACK_INFO.get(attack_type, ATTACK_INFO["DoS_DDoS"]),#fallback to Dos_DDps info if mapping fails
             "top_features": demo_features,
             "feature_importance": dfi,
             "demo_mode": True,
@@ -626,19 +711,56 @@ def run_detection(df, explain=False):
     unique, counts = np.unique(mc_preds, return_counts=True)
     top_class = unique[np.argmax(counts)]
 
-    # Map numeric label to string if needed
-    label_map = {0:"BENIGN", 1:"DDoS", 2:"PortScan", 3:"Brute Force", 4:"Bot",
-                 5:"Infiltration", 6:"Web Attack", 7:"Heartbleed"}
-    if isinstance(top_class, (int, np.integer)):
-        attack_type = label_map.get(int(top_class), str(top_class))
+    # ── Get attack type using the loaded label encoder ──────────────────────────
+    if stage2_label_encoder is not None:
+        try:
+            # top_class is an integer; inverse_transform returns a list of class names
+            attack_type = stage2_label_encoder.inverse_transform([int(top_class)])[0]
+        except Exception as e:
+            print(f"Error mapping class {top_class}: {e}")
+            attack_type = "Unknown_Attack"
     else:
-        attack_type = str(top_class)
+        # Fallback mapping (must match the training order from Sprint 3)
+        fallback_attack_map = {
+            0: "Botnet",
+            1: "BruteForce",
+            2: "DoS_DDoS",
+            3: "Infiltration",
+            4: "PortScan"
+        }
+        attack_type = fallback_attack_map.get(int(top_class), "Unknown_Attack")
 
-    class_distribution = {
-        str(label_map.get(int(k), str(k)) if isinstance(k, (int, np.integer)) else k): int(v)
-        for k, v in zip(unique, counts)
-    }
-    attack_breakdown = {k: int(v) for k, v in class_distribution.items() if k.upper() != 'BENIGN'}
+    # ── Build class_distribution and attack_breakdown using the encoder ─────────
+    class_distribution = {}
+    for k, v in zip(unique, counts):
+        if stage2_label_encoder is not None:
+            try:
+                class_name = stage2_label_encoder.inverse_transform([int(k)])[0]
+            except:
+                class_name = f"Class_{k}"
+        else:
+            # Use same fallback mapping
+            fallback = fallback_attack_map.get(int(k), f"Class_{k}")
+            class_name = fallback
+        class_distribution[class_name] = int(v)
+
+    # attack_breakdown excludes any BENIGN (but there is no BENIGN in Stage 2 outputs)
+    attack_breakdown = {k: int(v) for k, v in class_distribution.items()}     
+
+
+    # Map numeric label to string if needed
+    # label_map = {0:"BENIGN", 1:"DDoS", 2:"PortScan", 3:"Brute Force", 4:"Bot",
+    #              5:"Infiltration", 6:"Web Attack", 7:"Heartbleed"}
+    # if isinstance(top_class, (int, np.integer)):
+    #     attack_type = label_map.get(int(top_class), str(top_class))
+    # else:
+    #     attack_type = str(top_class)
+
+    # class_distribution = {
+    #     str(label_map.get(int(k), str(k)) if isinstance(k, (int, np.integer)) else k): int(v)
+    #     for k, v in zip(unique, counts)
+    # }
+    # attack_breakdown = {k: int(v) for k, v in class_distribution.items() if k.upper() != 'BENIGN'}
 
     # Compute top_features and feature_importance via SHAP or global importances
     top_features = []
@@ -738,7 +860,7 @@ def run_detection(df, explain=False):
         "flagged_flows": n_attack,
         "total_flows": total,
         "attack_type": attack_type,
-        "attack_info": ATTACK_INFO.get(attack_type, ATTACK_INFO["DDoS"]),
+        "attack_info": ATTACK_INFO.get(attack_type, ATTACK_INFO["DoS_DDoS"]),
         "class_distribution": class_distribution,
         "attack_breakdown": attack_breakdown,
         "top_features": top_features,
